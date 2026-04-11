@@ -33,6 +33,7 @@ google-generativeai==0.7.0
 # Exotel / Pipecat
 websockets==12.0
 pipecat-ai==0.0.38
+faster-whisper==1.0.3
 
 # Resolver stability pins (avoid long grpc backtracking on fresh installs)
 grpcio==1.62.3
@@ -42,6 +43,7 @@ grpcio-tools==1.62.3
 # Auth / Security
 python-jose[cryptography]==3.4.0
 passlib[bcrypt]==1.7.4
+bcrypt==4.0.1
 
 # Utilities
 httpx==0.27.0

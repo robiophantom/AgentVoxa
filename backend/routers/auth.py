@@ -29,6 +29,13 @@ class RegisterRequest(BaseModel):
     phone: str | None = None
 
 
+class BootstrapAdminRequest(BaseModel):
+    name: str
+    email: EmailStr
+    password: str
+    bootstrap_token: str
+
+
 class TokenResponse(BaseModel):
     access_token: str
     token_type: str = "bearer"
@@ -38,6 +45,12 @@ class TokenResponse(BaseModel):
 
 @router.post("/register", status_code=status.HTTP_201_CREATED)
 async def register(payload: RegisterRequest, db: AsyncSession = Depends(get_db)):
+    if payload.role == UserRole.admin:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Admin account creation is restricted.",
+        )
+
     result = await db.execute(select(User).where(User.email == payload.email))
     if result.scalar_one_or_none():
         raise HTTPException(status_code=400, detail="Email already registered.")
@@ -52,6 +65,48 @@ async def register(payload: RegisterRequest, db: AsyncSession = Depends(get_db))
     db.add(user)
     await db.flush()
     await db.refresh(user)
+    return {"id": user.id, "email": user.email, "role": user.role}
+
+
+@router.post("/bootstrap-admin", status_code=status.HTTP_201_CREATED)
+async def bootstrap_admin(
+    payload: BootstrapAdminRequest,
+    db: AsyncSession = Depends(get_db),
+):
+    """Create the first admin account using a one-time bootstrap token from env."""
+    if not settings.admin_bootstrap_token:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Admin bootstrap is disabled. Set ADMIN_BOOTSTRAP_TOKEN in backend/.env",
+        )
+
+    if payload.bootstrap_token != settings.admin_bootstrap_token:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid bootstrap token.",
+        )
+
+    existing_admin = await db.execute(select(User).where(User.role == UserRole.admin))
+    if existing_admin.scalar_one_or_none():
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="An admin account already exists.",
+        )
+
+    existing_email = await db.execute(select(User).where(User.email == payload.email))
+    if existing_email.scalar_one_or_none():
+        raise HTTPException(status_code=400, detail="Email already registered.")
+
+    user = User(
+        name=payload.name,
+        email=payload.email,
+        hashed_password=hash_password(payload.password),
+        role=UserRole.admin,
+    )
+    db.add(user)
+    await db.flush()
+    await db.refresh(user)
+
     return {"id": user.id, "email": user.email, "role": user.role}
 
 

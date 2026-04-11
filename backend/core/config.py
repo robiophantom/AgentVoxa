@@ -27,6 +27,11 @@ class Settings(BaseSettings):
     elevenlabs_api_key: str = ""
     elevenlabs_voice_id: str = "EXAVITQu4vr4xnSDxMaL"  # Default voice ID (Bella)
 
+    # Local STT fallback
+    local_stt_enabled: bool = True
+    local_stt_model_size: str = "tiny"
+    local_stt_language: str = "en"
+
     # Exotel
     exotel_api_key: str = ""
     exotel_api_secret: str = ""
@@ -34,6 +39,9 @@ class Settings(BaseSettings):
     exotel_private_key_path: str = "./exotel_private.key"
     exotel_phone_number: str = ""
     human_staff_number: str = ""
+
+    # Admin bootstrap
+    admin_bootstrap_token: str = ""
 
     # Upload limits
     max_upload_size_mb: int = 50

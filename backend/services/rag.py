@@ -12,7 +12,7 @@ settings = get_settings()
 
 async def vector_search(
     query: str,
-    top_k: int = 5,
+    top_k: int = 20,
     score_threshold: float = 0.3,
 ) -> list[dict]:
     """Dense vector search in Qdrant."""

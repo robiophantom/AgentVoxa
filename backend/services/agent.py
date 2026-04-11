@@ -127,7 +127,7 @@ Answer:"""
 
     answer = ""
     try:
-        model = genai.GenerativeModel("gemini-1.5-flash")
+        model = genai.GenerativeModel("gemini-2.5-flash")
         response = model.generate_content(prompt)
         answer = response.text.strip()
     except Exception as exc:
