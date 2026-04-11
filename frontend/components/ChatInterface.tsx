@@ -36,6 +36,7 @@ export default function ChatInterface() {
   ]);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
+  const [hasMounted, setHasMounted] = useState(false);
   const [connected, setConnected] = useState(false);
   const [sessionId] = useState(() => crypto.randomUUID());
   const [showContactForm, setShowContactForm] = useState(false);
@@ -45,6 +46,8 @@ export default function ChatInterface() {
     phone: "",
   });
   const wsRef = useRef<WebSocket | null>(null);
+  const reconnectTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const shouldReconnectRef = useRef(true);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   const scrollToBottom = () => {
@@ -52,11 +55,17 @@ export default function ChatInterface() {
   };
 
   useEffect(() => {
+    setHasMounted(true);
+  }, []);
+
+  useEffect(() => {
     scrollToBottom();
   }, [messages]);
 
   // WebSocket connection
   const connectWS = useCallback(() => {
+    if (!shouldReconnectRef.current) return;
+
     const ws = new WebSocket(`${WS_URL}/api/chat/ws`);
 
     ws.onopen = () => setConnected(true);
@@ -82,8 +91,11 @@ export default function ChatInterface() {
 
     ws.onclose = () => {
       setConnected(false);
-      // Auto-reconnect after 3s
-      setTimeout(connectWS, 3000);
+
+      // Auto-reconnect after 3s only while component is mounted.
+      if (shouldReconnectRef.current) {
+        reconnectTimerRef.current = setTimeout(connectWS, 3000);
+      }
     };
 
     ws.onerror = () => ws.close();
@@ -92,8 +104,34 @@ export default function ChatInterface() {
   }, [showContactForm]);
 
   useEffect(() => {
+    shouldReconnectRef.current = true;
     connectWS();
-    return () => wsRef.current?.close();
+
+    return () => {
+      shouldReconnectRef.current = false;
+
+      if (reconnectTimerRef.current) {
+        clearTimeout(reconnectTimerRef.current);
+        reconnectTimerRef.current = null;
+      }
+
+      const ws = wsRef.current;
+      if (!ws) return;
+
+      // In React Strict Mode, cleanup can run while socket is still CONNECTING.
+      // Avoid noisy browser warning by waiting until open before closing.
+      if (ws.readyState === WebSocket.CONNECTING) {
+        ws.onopen = () => ws.close(1000, "component unmounted");
+        ws.onmessage = null;
+        ws.onerror = null;
+        ws.onclose = null;
+        return;
+      }
+
+      if (ws.readyState === WebSocket.OPEN) {
+        ws.close(1000, "component unmounted");
+      }
+    };
     // connectWS is stable (useCallback) – run once on mount
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -294,11 +332,14 @@ export default function ChatInterface() {
                     className={`text-xs mt-1 ${
                       msg.role === "user" ? "text-blue-200" : "text-gray-400"
                     }`}
+                    suppressHydrationWarning
                   >
-                    {msg.timestamp.toLocaleTimeString([], {
-                      hour: "2-digit",
-                      minute: "2-digit",
-                    })}
+                    {hasMounted
+                      ? msg.timestamp.toLocaleTimeString([], {
+                          hour: "2-digit",
+                          minute: "2-digit",
+                        })
+                      : "--:--"}
                   </p>
                 </div>
               </motion.div>

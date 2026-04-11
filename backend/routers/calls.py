@@ -9,6 +9,7 @@ from __future__ import annotations
 import json
 import uuid
 from datetime import datetime, timezone
+from urllib.parse import urlparse
 
 from fastapi import APIRouter, Depends, Request, WebSocket, WebSocketDisconnect
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -27,21 +28,73 @@ router = APIRouter(prefix="/calls", tags=["calls"])
 settings = get_settings()
 
 
-@router.post("/answer")
+async def _extract_webhook_payload(request: Request) -> dict:
+    """Best-effort parser for Exotel webhooks (JSON, form-encoded, or querystring)."""
+    content_type = (request.headers.get("content-type") or "").lower()
+
+    if "application/json" in content_type:
+        try:
+            payload = await request.json()
+            if isinstance(payload, dict):
+                return payload
+        except Exception:
+            pass
+
+    if (
+        "application/x-www-form-urlencoded" in content_type
+        or "multipart/form-data" in content_type
+    ):
+        try:
+            form = await request.form()
+            return dict(form)
+        except Exception:
+            pass
+
+    # Fallback: Exotel (or proxies) may send webhook fields as query params.
+    return dict(request.query_params)
+
+
+def _build_public_ws_url(request: Request, call_uuid: str) -> str:
+    """Create a websocket URL that remains valid when served behind a tunnel/proxy."""
+    forwarded_proto = request.headers.get("x-forwarded-proto")
+    forwarded_host = request.headers.get("x-forwarded-host")
+
+    if forwarded_host:
+        proto = (forwarded_proto or "https").split(",")[0].strip().lower()
+        ws_scheme = "wss" if proto == "https" else "ws"
+        host = forwarded_host.split(",")[0].strip()
+        return f"{ws_scheme}://{host}/api/calls/ws/{call_uuid}"
+
+    # When behind a tunnel, Host is usually the public tunnel domain.
+    host = request.headers.get("host")
+    if host:
+        proto = (forwarded_proto or request.url.scheme or "https").split(",")[0].strip().lower()
+        ws_scheme = "wss" if proto == "https" else "ws"
+        return f"{ws_scheme}://{host}/api/calls/ws/{call_uuid}"
+
+    parsed_backend = urlparse(settings.backend_url)
+    if parsed_backend.scheme and parsed_backend.netloc:
+        ws_scheme = "wss" if parsed_backend.scheme == "https" else "ws"
+        return f"{ws_scheme}://{parsed_backend.netloc}/api/calls/ws/{call_uuid}"
+
+    return f"wss://localhost:8000/api/calls/ws/{call_uuid}"
+
+
+@router.api_route("/answer", methods=["GET", "POST"])
 async def answer_call(request: Request):
     """Exotel Answer URL – returns NCCO to connect call to our WebSocket."""
-    body = await request.json() if request.headers.get("content-type") == "application/json" else {}
-    call_uuid = body.get("uuid", str(uuid.uuid4()))
+    body = await _extract_webhook_payload(request)
+    call_uuid = str(body.get("uuid") or body.get("call_uuid") or uuid.uuid4())
 
-    ws_url = f"wss://{request.headers.get('host', 'localhost')}/api/calls/ws/{call_uuid}"
+    ws_url = _build_public_ws_url(request, call_uuid)
     ncco = build_answer_ncco(ws_url)
     return ncco
 
 
-@router.post("/event")
+@router.api_route("/event", methods=["GET", "POST"])
 async def call_event(request: Request, db: AsyncSession = Depends(get_db)):
     """Exotel Event URL – receives call lifecycle events."""
-    body = await request.json() if request.headers.get("content-type") == "application/json" else {}
+    body = await _extract_webhook_payload(request)
     call_uuid = body.get("uuid", "unknown")
     status = body.get("status", "unknown")
     caller_number = body.get("from", None)

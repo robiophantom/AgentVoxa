@@ -1,6 +1,7 @@
 """Gemini-powered agent: builds prompt from retrieved chunks, answers queries."""
 from __future__ import annotations
 
+import logging
 import re
 
 import google.generativeai as genai
@@ -9,6 +10,7 @@ from core.config import get_settings
 from services.rag import hybrid_search
 
 settings = get_settings()
+logger = logging.getLogger(__name__)
 
 _CANNOT_ANSWER_PHRASES = [
     "i don't know",
@@ -72,6 +74,31 @@ def _cannot_answer(response: str) -> bool:
     return any(phrase in lower for phrase in _CANNOT_ANSWER_PHRASES)
 
 
+def _fallback_from_chunks(chunks: list[dict]) -> str:
+    """Provide a deterministic answer when LLM call fails."""
+    if not chunks:
+        return (
+            "I'm sorry, I don't have enough information to answer that right now. "
+            "Please call our human staff."
+        )
+
+    lines: list[str] = []
+    for idx, chunk in enumerate(chunks[:3], 1):
+        snippet = str(chunk.get("text", "")).strip().replace("\n", " ")
+        if len(snippet) > 220:
+            snippet = f"{snippet[:217].rstrip()}..."
+        if snippet:
+            lines.append(f"{idx}. {snippet}")
+
+    if not lines:
+        return (
+            "I'm sorry, I don't have enough information to answer that right now. "
+            "Please call our human staff."
+        )
+
+    return "Here is what I found in our documents:\n" + "\n".join(lines)
+
+
 async def generate_answer(
     user_message: str,
     chat_history: list[dict] | None = None,
@@ -104,10 +131,8 @@ Answer:"""
         response = model.generate_content(prompt)
         answer = response.text.strip()
     except Exception as exc:
-        answer = (
-            "I'm sorry, I'm experiencing a technical issue right now. "
-            "Please call our human staff for assistance."
-        )
+        logger.exception("Gemini response generation failed")
+        answer = _fallback_from_chunks(chunks)
 
     escalate = _cannot_answer(answer)
     admission_interest = _detect_admission_interest(user_message) or _detect_admission_interest(answer)
