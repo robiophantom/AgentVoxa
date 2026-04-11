@@ -7,7 +7,7 @@ import Link from "next/link";
 import { useSession } from "next-auth/react";
 import { WS_URL, BACKEND_URL } from "@/lib/utils";
 
-const PHONE_NUMBER = process.env.NEXT_PUBLIC_VONAGE_PHONE_NUMBER || "+1 (800) AGENT-VX";
+const PHONE_NUMBER = process.env.NEXT_PUBLIC_EXOTEL_PHONE_NUMBER || "+1 (800) AGENT-VX";
 
 type Message = {
   id: string;

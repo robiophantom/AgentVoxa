@@ -1,6 +1,6 @@
 # AgentVoxa 🤖📞
 
-**AI Receptionist Platform** – answers queries via chat and phone calls, powered by Gemini AI, Vonage, Qdrant, and FastAPI.
+**AI Receptionist Platform** – answers queries via chat and phone calls, powered by Gemini AI, Exotel, Qdrant, and FastAPI.
 
 ---
 
@@ -57,7 +57,7 @@ Open [http://localhost:3000](http://localhost:3000).
 | Feature | Description |
 |---|---|
 | 🤖 AI Chat | WebSocket + REST chat with Gemini RAG |
-| 📞 Voice Calls | Vonage WebSocket bridge + Pipecat STT/TTS |
+| 📞 Voice Calls | Exotel WebSocket bridge + Pipecat STT/TTS |
 | 📄 Knowledge Base | Upload PDF/DOCX/MD, chunk & embed with MiniLM |
 | 🔍 Hybrid Search | Qdrant vector + FTS retrieval |
 | 👥 Roles | Admin, Student (authenticated), Public User |
@@ -77,8 +77,8 @@ Open [http://localhost:3000](http://localhost:3000).
 | DELETE | `/api/documents/{id}` | Delete document (Admin) |
 | POST | `/api/chat/` | Send chat message |
 | WS | `/api/chat/ws` | WebSocket chat |
-| POST | `/api/calls/answer` | Vonage answer webhook |
-| POST | `/api/calls/event` | Vonage event webhook |
+| POST | `/api/calls/answer` | Exotel answer webhook |
+| POST | `/api/calls/event` | Exotel event webhook |
 | WS | `/api/calls/ws/{uuid}` | Call audio stream |
 | GET | `/api/admin/chat-logs` | Chat logs (Admin) |
 | GET | `/api/admin/call-logs` | Call logs (Admin) |
@@ -89,13 +89,13 @@ Open [http://localhost:3000](http://localhost:3000).
 
 Copy `.env.example` to `.env` and fill in:
 - `GEMINI_API_KEY` – Google Gemini API key
-- `VONAGE_API_KEY` / `VONAGE_API_SECRET` – Vonage credentials
+- `EXOTEL_API_KEY` / `EXOTEL_API_SECRET` – Exotel credentials
 - `DATABASE_URL` – PostgreSQL connection string
 - `QDRANT_HOST` / `QDRANT_PORT` – Qdrant connection
 - `SECRET_KEY` – JWT signing secret
 
 ## Tech Stack
 
-**Backend**: FastAPI · SQLAlchemy · Qdrant · SentenceTransformers (MiniLM) · Gemini · Vonage · Pipecat
+**Backend**: FastAPI · SQLAlchemy · Qdrant · SentenceTransformers (MiniLM) · Gemini · Exotel · Pipecat
 
 **Frontend**: Next.js 15 · TypeScript · Tailwind CSS · Framer Motion · shadcn/ui · NextAuth.js

@@ -51,6 +51,20 @@ async def ensure_collection() -> None:
             ),
             optimizers_config=_OPTIMIZERS_CONFIG,
         )
+        
+        # Create a payload index for full-text search on the 'text' field
+        from qdrant_client.models import TextIndexParams, TextIndexType
+        await client.create_payload_index(
+            collection_name=settings.qdrant_collection_name,
+            field_name="text",
+            field_schema=TextIndexParams(
+                type=TextIndexType.TEXT,
+                tokenizer="word",
+                min_token_len=2,
+                max_token_len=15,
+                lowercase=True,
+            ),
+        )
     else:
         await client.update_collection(
             collection_name=settings.qdrant_collection_name,

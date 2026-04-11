@@ -1,8 +1,8 @@
 """
-Vonage calling router.
-- /answer  : Vonage calls this when a call is received (NCCO response).
-- /event   : Vonage call event webhook.
-- /ws/{uuid}: WebSocket endpoint for Vonage audio stream (Pipecat STT/TTS).
+Exotel calling router.
+- /answer  : Exotel calls this when a call is received (NCCO response).
+- /event   : Exotel call event webhook.
+- /ws/{uuid}: WebSocket endpoint for Exotel audio stream (Pipecat STT/TTS).
 """
 from __future__ import annotations
 
@@ -17,7 +17,7 @@ from core.config import get_settings
 from core.database import get_db
 from models.logs import CallLog, InterestLevel
 from services.agent import generate_answer
-from services.vonage_service import (
+from services.exotel_service import (
     build_answer_ncco,
     build_hangup_ncco,
     build_transfer_ncco,
@@ -29,7 +29,7 @@ settings = get_settings()
 
 @router.post("/answer")
 async def answer_call(request: Request):
-    """Vonage Answer URL – returns NCCO to connect call to our WebSocket."""
+    """Exotel Answer URL – returns NCCO to connect call to our WebSocket."""
     body = await request.json() if request.headers.get("content-type") == "application/json" else {}
     call_uuid = body.get("uuid", str(uuid.uuid4()))
 
@@ -40,7 +40,7 @@ async def answer_call(request: Request):
 
 @router.post("/event")
 async def call_event(request: Request, db: AsyncSession = Depends(get_db)):
-    """Vonage Event URL – receives call lifecycle events."""
+    """Exotel Event URL – receives call lifecycle events."""
     body = await request.json() if request.headers.get("content-type") == "application/json" else {}
     call_uuid = body.get("uuid", "unknown")
     status = body.get("status", "unknown")
@@ -48,7 +48,7 @@ async def call_event(request: Request, db: AsyncSession = Depends(get_db)):
 
     if status == "started":
         existing_log = CallLog(
-            vonage_call_uuid=call_uuid,
+            exotel_call_uuid=call_uuid,
             caller_number=caller_number,
             call_status="started",
         )
@@ -65,8 +65,8 @@ async def call_websocket(
     db: AsyncSession = Depends(get_db),
 ):
     """
-    Real-time audio WebSocket for Vonage call.
-    Receives PCM audio from Vonage, uses Pipecat for STT,
+    Real-time audio WebSocket for Exotel call.
+    Receives PCM audio from Exotel, uses Pipecat for STT,
     passes transcript to agent, then uses Pipecat TTS for response.
 
     NOTE: Pipecat pipeline integration is scaffolded here.
@@ -82,12 +82,15 @@ async def call_websocket(
     # ── Pipecat placeholder ──────────────────────────────────────────────────
     # TODO: Initialise Pipecat pipeline here:
     #   pipeline = Pipeline([
-    #       VonageAudioSource(websocket),
+    #       ExotelAudioSource(websocket),
     #       SileroVADAnalyzer(),
-    #       DeepgramSTTService(api_key=...),
+    #       WhisperSTTService(model="base"), # Runs locally, completely free
     #       AgentVoxaProcessor(generate_answer),
-    #       CartesiaTTSService(api_key=...),
-    #       VonageAudioSink(websocket),
+    #       ElevenLabsTTSService(
+    #           api_key=settings.elevenlabs_api_key, 
+    #           voice_id=settings.elevenlabs_voice_id
+    #       ),
+    #       ExotelAudioSink(websocket),
     #   ])
     #   await pipeline.run()
     # ────────────────────────────────────────────────────────────────────────
@@ -96,12 +99,12 @@ async def call_websocket(
         while True:
             data = await websocket.receive()
 
-            # Vonage sends binary audio frames
+            # Exotel sends binary audio frames
             if "bytes" in data:
                 # Placeholder: in production, feed to Pipecat VAD/STT
                 pass
 
-            # Vonage also sends JSON control messages
+            # Exotel also sends JSON control messages
             elif "text" in data:
                 try:
                     msg = json.loads(data["text"])
@@ -134,7 +137,7 @@ async def call_websocket(
 
                         if result["escalate_to_human"]:
                             escalated = True
-                            # Signal Vonage to transfer the call
+                            # Signal Exotel to transfer the call
                             ncco = build_transfer_ncco(settings.human_staff_number)
                             await websocket.send_json(
                                 {"event": "transfer", "ncco": ncco}
@@ -153,7 +156,7 @@ async def call_websocket(
         # Save call log
         full_transcript = "\n".join(transcript_parts)
         call_log = CallLog(
-            vonage_call_uuid=call_uuid,
+            exotel_call_uuid=call_uuid,
             transcript=full_transcript,
             call_status="completed",
             admission_interest=(

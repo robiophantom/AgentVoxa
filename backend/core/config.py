@@ -23,12 +23,16 @@ class Settings(BaseSettings):
     # Gemini
     gemini_api_key: str = ""
 
-    # Vonage
-    vonage_api_key: str = ""
-    vonage_api_secret: str = ""
-    vonage_application_id: str = ""
-    vonage_private_key_path: str = "./vonage_private.key"
-    vonage_phone_number: str = ""
+    # ElevenLabs (for TTS)
+    elevenlabs_api_key: str = ""
+    elevenlabs_voice_id: str = "EXAVITQu4vr4xnSDxMaL"  # Default voice ID (Bella)
+
+    # Exotel
+    exotel_api_key: str = ""
+    exotel_api_secret: str = ""
+    exotel_application_id: str = ""
+    exotel_private_key_path: str = "./exotel_private.key"
+    exotel_phone_number: str = ""
     human_staff_number: str = ""
 
     # Upload limits

@@ -1,5 +1,5 @@
 """
-Vonage call handling service.
+Exotel call handling service.
 Handles NCCO responses for inbound calls and WebSocket audio bridging via Pipecat.
 """
 from __future__ import annotations
@@ -13,7 +13,7 @@ settings = get_settings()
 
 def build_answer_ncco(websocket_url: str) -> list[dict]:
     """
-    Return a Vonage NCCO that connects the call audio stream to our WebSocket endpoint.
+    Return a Exotel NCCO that connects the call audio stream to our WebSocket endpoint.
     The WebSocket endpoint uses Pipecat for real-time STT/TTS processing.
     """
     return [
@@ -49,7 +49,7 @@ def build_transfer_ncco(to_number: str) -> list[dict]:
         },
         {
             "action": "connect",
-            "from": settings.vonage_phone_number,
+            "from": settings.exotel_phone_number,
             "endpoint": [{"type": "phone", "number": to_number}],
         },
     ]

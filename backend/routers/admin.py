@@ -55,7 +55,7 @@ async def get_call_logs(
     return [
         {
             "id": l.id,
-            "vonage_call_uuid": l.vonage_call_uuid,
+            "exotel_call_uuid": l.exotel_call_uuid,
             "caller_number": l.caller_number,
             "transcript": l.transcript,
             "summary": l.summary,

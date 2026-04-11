@@ -8,7 +8,7 @@ from services.document_processor import (
 )
 from services.rag import hybrid_search, vector_search, full_text_search
 from services.agent import generate_answer
-from services.vonage_service import (
+from services.exotel_service import (
     build_answer_ncco,
     build_transfer_ncco,
     build_hangup_ncco,

@@ -49,7 +49,7 @@ type ChatLogEntry = {
 
 type CallLogEntry = {
   id: number;
-  vonage_call_uuid: string;
+  exotel_call_uuid: string;
   caller_number: string | null;
   transcript: string | null;
   call_status: string;
