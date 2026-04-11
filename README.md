@@ -34,9 +34,20 @@ docker compose up -d
 ### 2. Backend
 ```bash
 cd backend
+python --version  # use Python 3.11 or 3.12
 python -m venv .venv && source .venv/bin/activate
+pip install --upgrade pip setuptools wheel
 pip install -r requirements.txt
 cp ../.env.example .env        # Edit with real keys
+uvicorn main:app --reload --port 8000
+```
+
+Windows PowerShell (recommended):
+```powershell
+cd backend
+.\scripts\bootstrap.ps1
+.\.venv\Scripts\Activate.ps1
+Copy-Item ..\.env.example .env
 uvicorn main:app --reload --port 8000
 ```
 

@@ -4,7 +4,6 @@ from qdrant_client.models import (
     Distance,
     OptimizersConfigDiff,
     VectorParams,
-    VectorsConfig,
 )
 
 from core.config import get_settings
@@ -43,11 +42,9 @@ async def ensure_collection() -> None:
     if settings.qdrant_collection_name not in existing:
         await client.create_collection(
             collection_name=settings.qdrant_collection_name,
-            vectors_config=VectorsConfig(
-                params=VectorParams(
-                    size=settings.embedding_dim,
-                    distance=Distance.COSINE,
-                )
+            vectors_config=VectorParams(
+                size=settings.embedding_dim,
+                distance=Distance.COSINE,
             ),
             optimizers_config=_OPTIMIZERS_CONFIG,
         )

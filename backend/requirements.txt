@@ -1,3 +1,6 @@
+# AgentVoxa backend dependencies
+# Use Python 3.11 or 3.12 for best compatibility with ML/voice packages.
+
 fastapi==0.111.0
 uvicorn[standard]==0.29.0
 python-dotenv==1.0.1
@@ -6,9 +9,9 @@ pydantic-settings==2.2.1
 
 # Database
 sqlalchemy==2.0.30
-asyncpg==0.29.0
+asyncpg==0.30.0
 alembic==1.13.1
-psycopg2-binary==2.9.9
+psycopg2-binary==2.9.11
 
 # Qdrant
 qdrant-client==1.9.1
@@ -28,9 +31,13 @@ tiktoken==0.7.0
 google-generativeai==0.7.0
 
 # Exotel / Pipecat
-exotel==3.13.0
 websockets==12.0
 pipecat-ai==0.0.38
+
+# Resolver stability pins (avoid long grpc backtracking on fresh installs)
+grpcio==1.62.3
+grpcio-status==1.62.3
+grpcio-tools==1.62.3
 
 # Auth / Security
 python-jose[cryptography]==3.4.0
