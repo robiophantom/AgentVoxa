@@ -1,0 +1,58 @@
+"""Qdrant client initialisation with recommended optimizer settings."""
+from qdrant_client import AsyncQdrantClient
+from qdrant_client.models import (
+    Distance,
+    OptimizersConfigDiff,
+    VectorParams,
+    VectorsConfig,
+)
+
+from core.config import get_settings
+
+settings = get_settings()
+
+# Optimizer settings as requested
+_OPTIMIZERS_CONFIG = OptimizersConfigDiff(
+    default_segment_number=2,    # Target 2 final segments (prevents hundreds of tiny segments)
+    memmap_threshold=20000,      # Switch to mmap after 20k vectors (saves RAM)
+    indexing_threshold=20000,    # Build HNSW index after 20k vectors
+    flush_interval_sec=5,        # Flush WAL to segments every 5s
+    max_optimization_threads=2,  # Background merge threads
+)
+
+_client: AsyncQdrantClient | None = None
+
+
+def get_qdrant_client() -> AsyncQdrantClient:
+    global _client
+    if _client is None:
+        _client = AsyncQdrantClient(
+            host=settings.qdrant_host,
+            port=settings.qdrant_port,
+            prefer_grpc=False,
+        )
+    return _client
+
+
+async def ensure_collection() -> None:
+    """Create the Qdrant collection if it does not exist, or update its optimizers."""
+    client = get_qdrant_client()
+    collections = await client.get_collections()
+    existing = [c.name for c in collections.collections]
+
+    if settings.qdrant_collection_name not in existing:
+        await client.create_collection(
+            collection_name=settings.qdrant_collection_name,
+            vectors_config=VectorsConfig(
+                params=VectorParams(
+                    size=settings.embedding_dim,
+                    distance=Distance.COSINE,
+                )
+            ),
+            optimizers_config=_OPTIMIZERS_CONFIG,
+        )
+    else:
+        await client.update_collection(
+            collection_name=settings.qdrant_collection_name,
+            optimizers_config=_OPTIMIZERS_CONFIG,
+        )
