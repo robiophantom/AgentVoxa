@@ -98,4 +98,4 @@ Copy `.env.example` to `.env` and fill in:
 
 **Backend**: FastAPI · SQLAlchemy · Qdrant · SentenceTransformers (MiniLM) · Gemini · Vonage · Pipecat
 
-**Frontend**: Next.js 14 · TypeScript · Tailwind CSS · Framer Motion · shadcn/ui · NextAuth.js
+**Frontend**: Next.js 15 · TypeScript · Tailwind CSS · Framer Motion · shadcn/ui · NextAuth.js
