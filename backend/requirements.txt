@@ -30,10 +30,7 @@ tiktoken==0.7.0
 # AI / Gemini
 google-generativeai==0.7.0
 
-# Exotel / Pipecat
-websockets==12.0
-pipecat-ai==0.0.38
-faster-whisper==1.0.3
+# Exotel / Pipecat removed
 
 # Resolver stability pins (avoid long grpc backtracking on fresh installs)
 grpcio==1.62.3

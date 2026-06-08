@@ -32,6 +32,7 @@ Guidelines:
   "I'm sorry, I don't have enough information to answer that. Please call our human staff."
 - If the caller/user seems interested in admission, ask for their name, email, and phone number.
 - Do not fabricate information.
+- Do not write # from chunks in the output.
 """
 
 

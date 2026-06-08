@@ -48,7 +48,7 @@ class CallLog(Base):
     __tablename__ = "call_logs"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
-    exotel_call_uuid: Mapped[str] = mapped_column(String(64), unique=True, index=True, nullable=False)
+    vapi_call_id: Mapped[str] = mapped_column(String(64), unique=True, index=True, nullable=False)
     caller_number: Mapped[str | None] = mapped_column(String(30), nullable=True)
     user_id: Mapped[int | None] = mapped_column(
         Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=True

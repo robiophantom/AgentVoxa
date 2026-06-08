@@ -69,7 +69,7 @@ type ChatConversationDetail = {
 
 type CallLogEntry = {
   id: number;
-  exotel_call_uuid: string;
+  vapi_call_id: string;
   caller_number: string | null;
   transcript: string | null;
   call_status: string;

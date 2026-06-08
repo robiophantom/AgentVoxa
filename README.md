@@ -1,6 +1,6 @@
 # AgentVoxa 🤖📞
 
-**AI Receptionist Platform** – answers queries via chat and phone calls, powered by Gemini AI, Exotel, Qdrant, and FastAPI.
+**AI Receptionist Platform** – answers queries via chat and phone calls, powered by Gemini AI, Vapi, Qdrant, and FastAPI.
 
 ---
 
@@ -68,7 +68,7 @@ Open [http://localhost:3000](http://localhost:3000).
 | Feature | Description |
 |---|---|
 | 🤖 AI Chat | WebSocket + REST chat with Gemini RAG |
-| 📞 Voice Calls | Exotel WebSocket bridge + Pipecat STT/TTS |
+| 📞 Voice Calls | Vapi webhook bridge |
 | 📄 Knowledge Base | Upload PDF/DOCX/MD, chunk & embed with MiniLM |
 | 🔍 Hybrid Search | Qdrant vector + FTS retrieval |
 | 👥 Roles | Admin, Student (authenticated), Public User |
@@ -88,9 +88,7 @@ Open [http://localhost:3000](http://localhost:3000).
 | DELETE | `/api/documents/{id}` | Delete document (Admin) |
 | POST | `/api/chat/` | Send chat message |
 | WS | `/api/chat/ws` | WebSocket chat |
-| POST | `/api/calls/answer` | Exotel answer webhook |
-| POST | `/api/calls/event` | Exotel event webhook |
-| WS | `/api/calls/ws/{uuid}` | Call audio stream |
+| POST | `/api/calls/vapi/webhook` | Vapi tool-calls and status webhook |
 | GET | `/api/admin/chat-logs` | Chat logs (Admin) |
 | GET | `/api/admin/call-logs` | Call logs (Admin) |
 | GET | `/api/admin/interested-users` | Admission leads (Admin) |
@@ -100,13 +98,13 @@ Open [http://localhost:3000](http://localhost:3000).
 
 Copy `.env.example` to `.env` and fill in:
 - `GEMINI_API_KEY` – Google Gemini API key
-- `EXOTEL_API_KEY` / `EXOTEL_API_SECRET` – Exotel credentials
+- `VAPI_WEBHOOK_SECRET` – Vapi credentials
 - `DATABASE_URL` – PostgreSQL connection string
 - `QDRANT_HOST` / `QDRANT_PORT` – Qdrant connection
 - `SECRET_KEY` – JWT signing secret
 
 ## Tech Stack
 
-**Backend**: FastAPI · SQLAlchemy · Qdrant · SentenceTransformers (MiniLM) · Gemini · Exotel · Pipecat
+**Backend**: FastAPI · SQLAlchemy · Qdrant · SentenceTransformers (MiniLM) · Gemini · Vapi
 
 **Frontend**: Next.js 15 · TypeScript · Tailwind CSS · Framer Motion · shadcn/ui · NextAuth.js

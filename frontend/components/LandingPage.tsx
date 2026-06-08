@@ -5,7 +5,7 @@ import { Phone, MessageCircle, Brain, Shield, Zap, Users } from "lucide-react";
 import Link from "next/link";
 import { useSession } from "next-auth/react";
 
-const PHONE_NUMBER = process.env.NEXT_PUBLIC_EXOTEL_PHONE_NUMBER || "+1 (800) AGENT-VX";
+const PHONE_NUMBER = process.env.NEXT_PUBLIC_VAPI_PHONE_NUMBER || "+1 (800) AGENT-VX";
 
 const features = [
   {
@@ -19,7 +19,7 @@ const features = [
     icon: Phone,
     title: "Voice Calling",
     description:
-      "Call our number and speak to the AI receptionist in real-time. Powered by Exotel & Pipecat.",
+      "Call our number and speak to the AI receptionist in real-time. Powered by Vapi.",
     color: "text-brand-blue",
   },
   {
@@ -137,7 +137,7 @@ export default function LandingPage() {
             className="inline-flex items-center gap-2 bg-brand-red/10 text-brand-red px-4 py-1.5 rounded-full text-sm font-medium mb-6"
           >
             <Zap className="w-4 h-4" />
-            Powered by Gemini AI + Exotel
+            Powered by Gemini AI + Vapi
           </motion.div>
 
           <motion.h1
