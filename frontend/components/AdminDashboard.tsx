@@ -16,6 +16,7 @@ import {
   AlertCircle,
   CheckCircle2,
   Clock,
+  ChevronRight,
 } from "lucide-react";
 import Link from "next/link";
 import { useSession, signOut } from "next-auth/react";
@@ -34,17 +35,36 @@ type Document = {
   created_at: string;
 };
 
-type ChatLogEntry = {
+type ChatMessageEntry = {
   id: number;
-  session_id: string;
   user_message: string;
   agent_response: string;
   admission_interest: string;
   escalated_to_human: boolean;
+  created_at: string;
+};
+
+type ChatConversation = {
+  session_id: string;
+  message_count: number;
+  latest_at: string;
+  summary: string | null;
+  captured_data: Record<string, string>;
+  admission_interest: boolean;
+  escalated_to_human: boolean;
   contact_name: string | null;
   contact_email: string | null;
   contact_phone: string | null;
-  created_at: string;
+};
+
+type ChatConversationDetail = {
+  session_id: string;
+  summary: string | null;
+  captured_data: Record<string, string>;
+  contact_name: string | null;
+  contact_email: string | null;
+  contact_phone: string | null;
+  messages: ChatMessageEntry[];
 };
 
 type CallLogEntry = {
@@ -85,7 +105,8 @@ export default function AdminDashboard() {
   const router = useRouter();
   const [activeTab, setActiveTab] = useState<Tab>("knowledge-base");
   const [documents, setDocuments] = useState<Document[]>([]);
-  const [chatLogs, setChatLogs] = useState<ChatLogEntry[]>([]);
+  const [chatConversations, setChatConversations] = useState<ChatConversation[]>([]);
+  const [selectedConversation, setSelectedConversation] = useState<ChatConversationDetail | null>(null);
   const [callLogs, setCallLogs] = useState<CallLogEntry[]>([]);
   const [interestedUsers, setInterestedUsers] = useState<InterestedUser[]>([]);
   const [stats, setStats] = useState<Stats | null>(null);
@@ -123,15 +144,31 @@ export default function AdminDashboard() {
     }
   };
 
-  const fetchChatLogs = async () => {
+  const fetchChatConversations = async () => {
     setLoadingData(true);
     try {
-      const res = await fetch(`${BACKEND_URL}/api/admin/chat-logs`, {
+      const res = await fetch(`${BACKEND_URL}/api/admin/chat-conversations`, {
         headers: getHeaders(),
       });
-      if (res.ok) setChatLogs(await res.json());
+      if (res.ok) setChatConversations(await res.json());
     } catch {
       toast.error("Failed to load chat logs");
+    } finally {
+      setLoadingData(false);
+    }
+  };
+
+  const fetchConversationDetail = async (sessionId: string) => {
+    setLoadingData(true);
+    try {
+      const res = await fetch(`${BACKEND_URL}/api/admin/chat-conversations/${sessionId}`, {
+        headers: getHeaders(),
+      });
+      if (res.ok) {
+        setSelectedConversation(await res.json());
+      }
+    } catch {
+      toast.error("Failed to load conversation detail");
     } finally {
       setLoadingData(false);
     }
@@ -178,7 +215,10 @@ export default function AdminDashboard() {
     if (status !== "authenticated") return;
     fetchStats();
     if (activeTab === "knowledge-base") fetchDocuments();
-    else if (activeTab === "chat-logs") fetchChatLogs();
+    else if (activeTab === "chat-logs") {
+      setSelectedConversation(null);
+      fetchChatConversations();
+    }
     else if (activeTab === "call-logs") fetchCallLogs();
     else if (activeTab === "insights") fetchInsights();
     // Fetch functions are defined inline and depend on session/activeTab via closure;
@@ -427,24 +467,85 @@ export default function AdminDashboard() {
                 <div className="flex justify-center py-12">
                   <Loader2 className="w-6 h-6 text-brand-red animate-spin" />
                 </div>
-              ) : chatLogs.length === 0 ? (
+              ) : !selectedConversation && chatConversations.length === 0 ? (
                 <div className="text-center py-12 text-gray-400">
                   <MessageSquare className="w-12 h-12 mx-auto mb-3 opacity-40" />
                   <p>No chat logs yet.</p>
                 </div>
+              ) : selectedConversation ? (
+                <div className="space-y-4">
+                  <button
+                    onClick={() => setSelectedConversation(null)}
+                    className="text-sm font-medium text-brand-blue hover:underline"
+                  >
+                    ← Back to all conversations
+                  </button>
+
+                  <div className="rounded-2xl border border-gray-100 bg-white p-5 shadow-sm">
+                    <div className="mb-4 flex flex-wrap items-center gap-2">
+                      <span className="rounded-full bg-brand-blue/10 px-2.5 py-1 text-xs font-medium text-brand-blue">
+                        Session {selectedConversation.session_id.slice(0, 8)}…
+                      </span>
+                      {selectedConversation.summary && (
+                        <span className="rounded-full bg-brand-yellow/20 px-2.5 py-1 text-xs font-medium text-yellow-700">
+                          Summary available
+                        </span>
+                      )}
+                    </div>
+
+                    {selectedConversation.summary && (
+                      <p className="rounded-xl bg-gray-50 p-3 text-sm text-gray-700">
+                        {selectedConversation.summary}
+                      </p>
+                    )}
+
+                    {(selectedConversation.contact_name ||
+                      selectedConversation.contact_email ||
+                      selectedConversation.contact_phone ||
+                      Object.keys(selectedConversation.captured_data || {}).length > 0) && (
+                      <div className="mt-3 rounded-xl border border-gray-100 bg-white p-3 text-xs text-gray-600">
+                        <p className="mb-2 font-semibold text-gray-700">Captured user data</p>
+                        <p>
+                          {selectedConversation.contact_name || "—"} · {selectedConversation.contact_email || "—"} · {selectedConversation.contact_phone || "—"}
+                        </p>
+                        {Object.entries(selectedConversation.captured_data || {}).map(([key, value]) => (
+                          <p key={key} className="mt-1">
+                            {key}: {value}
+                          </p>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="space-y-3">
+                    {selectedConversation.messages.map((entry) => (
+                      <div key={entry.id} className="space-y-2 rounded-2xl border border-gray-100 bg-white p-5 shadow-sm">
+                        <div className="text-xs text-gray-400">{new Date(entry.created_at).toLocaleString()}</div>
+                        <div className="rounded-xl bg-brand-blue/5 p-3">
+                          <p className="text-xs font-semibold uppercase tracking-wide text-brand-blue">User</p>
+                          <p className="mt-1 text-sm text-gray-700">{entry.user_message}</p>
+                        </div>
+                        <div className="rounded-xl bg-brand-red/5 p-3">
+                          <p className="text-xs font-semibold uppercase tracking-wide text-brand-red">Agent</p>
+                          <p className="mt-1 text-sm text-gray-700 whitespace-pre-wrap">{entry.agent_response}</p>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
               ) : (
                 <div className="space-y-3">
-                  {chatLogs.map((log) => (
+                  {chatConversations.map((log) => (
                     <div
-                      key={log.id}
-                      className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5"
+                      key={log.session_id}
+                      className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5 hover:border-brand-blue/20 transition"
                     >
-                      <div className="flex justify-between items-start mb-3">
+                      <div className="flex justify-between items-start mb-3 gap-3">
                         <div className="flex items-center gap-2">
                           <span className="text-xs text-gray-400 font-mono">
                             {log.session_id.slice(0, 8)}…
                           </span>
-                          {log.admission_interest === "high" && (
+                          {log.admission_interest && (
                             <span className="bg-brand-yellow/20 text-yellow-700 text-xs font-medium px-2 py-0.5 rounded-full">
                               Admission Interest
                             </span>
@@ -456,20 +557,41 @@ export default function AdminDashboard() {
                           )}
                         </div>
                         <span className="text-xs text-gray-400">
-                          {new Date(log.created_at).toLocaleString()}
+                          {new Date(log.latest_at).toLocaleString()}
                         </span>
                       </div>
-                      <p className="text-sm text-gray-700 font-medium mb-1">
-                        Q: {log.user_message}
+                      <p className="text-sm text-gray-700 font-medium mb-1 line-clamp-3">
+                        {log.summary || "No summary available yet."}
                       </p>
-                      <p className="text-sm text-gray-500 line-clamp-2">
-                        A: {log.agent_response}
-                      </p>
+
+                      <p className="text-xs text-gray-500">{log.message_count} messages</p>
+
+                      {Object.keys(log.captured_data || {}).length > 0 && (
+                        <div className="mt-2 flex flex-wrap gap-1.5">
+                          {Object.entries(log.captured_data).map(([key, value]) => (
+                            <span
+                              key={key}
+                              className="rounded-full bg-gray-100 px-2 py-0.5 text-[11px] text-gray-600"
+                            >
+                              {key}: {value}
+                            </span>
+                          ))}
+                        </div>
+                      )}
+
                       {(log.contact_name || log.contact_email) && (
                         <div className="mt-3 text-xs text-gray-500 bg-gray-50 rounded-lg p-3">
                           📋 {log.contact_name} · {log.contact_email} · {log.contact_phone}
                         </div>
                       )}
+
+                      <button
+                        onClick={() => fetchConversationDetail(log.session_id)}
+                        className="mt-3 inline-flex items-center gap-1 rounded-lg bg-brand-blue/10 px-2.5 py-1.5 text-xs font-medium text-brand-blue hover:bg-brand-blue/20"
+                      >
+                        Open full conversation
+                        <ChevronRight className="w-3.5 h-3.5" />
+                      </button>
                     </div>
                   ))}
                 </div>

@@ -32,7 +32,21 @@
     @apply border-border;
   }
   body {
-    @apply bg-background text-foreground font-sans antialiased;
+    @apply bg-background text-foreground antialiased;
+    font-family: var(--font-body), "Segoe UI", sans-serif;
+    background-image: radial-gradient(circle at 20% 15%, rgba(244, 162, 97, 0.12), transparent 25%),
+      radial-gradient(circle at 80% 85%, rgba(230, 57, 70, 0.1), transparent 30%);
+    background-attachment: fixed;
+  }
+
+  h1,
+  h2,
+  h3,
+  h4,
+  h5,
+  h6 {
+    font-family: var(--font-display), "Segoe UI", sans-serif;
+    letter-spacing: -0.02em;
   }
 }
 

@@ -8,10 +8,10 @@ from services.document_processor import (
 )
 from services.rag import hybrid_search, vector_search, full_text_search
 from services.agent import generate_answer
-from services.exotel_service import (
-    build_answer_ncco,
-    build_transfer_ncco,
-    build_hangup_ncco,
+from services.twilio_service import (
+    build_answer_twiml,
+    build_transfer_twiml,
+    build_hangup_twiml,
 )
 
 __all__ = [
@@ -26,7 +26,7 @@ __all__ = [
     "vector_search",
     "full_text_search",
     "generate_answer",
-    "build_answer_ncco",
-    "build_transfer_ncco",
-    "build_hangup_ncco",
+    "build_answer_twiml",
+    "build_transfer_twiml",
+    "build_hangup_twiml",
 ]

@@ -52,6 +52,22 @@ def _build_context(chunks: list[dict]) -> str:
     return "\n\n".join(parts)
 
 
+def _build_chat_history(chat_history: list[dict] | None) -> str:
+    if not chat_history:
+        return "No prior conversation."
+
+    formatted: list[str] = []
+    for turn in chat_history[-12:]:
+        role = turn.get("role", "user")
+        content = str(turn.get("content", "")).strip()
+        if not content:
+            continue
+        speaker = "User" if role == "user" else "Assistant"
+        formatted.append(f"{speaker}: {content}")
+
+    return "\n".join(formatted) if formatted else "No prior conversation."
+
+
 def _detect_admission_interest(text: str) -> bool:
     keywords = [
         "admission",
@@ -114,12 +130,17 @@ async def generate_answer(
     """
     chunks = await hybrid_search(user_message, top_k=5)
     context = _build_context(chunks)
+    history_text = _build_chat_history(chat_history)
 
     prompt = f"""{SYSTEM_PROMPT}
 
 --- CONTEXT START ---
 {context}
 --- CONTEXT END ---
+
+--- CHAT HISTORY START ---
+{history_text}
+--- CHAT HISTORY END ---
 
 User query: {user_message}
 

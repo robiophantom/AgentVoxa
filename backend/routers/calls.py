@@ -1,12 +1,13 @@
 """
-Exotel calling router.
-- /answer  : Exotel calls this when a call is received (NCCO response).
-- /event   : Exotel call event webhook.
-- /ws/{uuid}: WebSocket endpoint for Exotel audio stream (Pipecat STT/TTS).
+Twilio calling router.
+- /answer  : Twilio calls this when a call is received (TwiML response).
+- /event   : Twilio call status webhook.
+- /ws/{uuid}: WebSocket endpoint for Twilio Media Streams audio.
 """
 from __future__ import annotations
 
 import asyncio
+import audioop
 import base64
 import json
 import logging
@@ -15,7 +16,7 @@ import uuid
 from datetime import datetime, timezone
 from urllib.parse import urlparse
 
-from fastapi import APIRouter, Depends, Request, WebSocket, WebSocketDisconnect
+from fastapi import APIRouter, Depends, Request, Response, WebSocket, WebSocketDisconnect
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -23,10 +24,9 @@ from core.config import get_settings
 from core.database import get_db
 from models.logs import CallLog, InterestLevel
 from services.agent import generate_answer
-from services.exotel_service import (
-    build_answer_ncco,
-    build_hangup_ncco,
-    build_transfer_ncco,
+from services.twilio_service import (
+    build_answer_twiml,
+    build_transfer_twiml,
 )
 from services.stt_local import get_local_stt
 
@@ -152,7 +152,21 @@ def _extract_audio_bytes(msg: dict) -> bytes:
     for value in b64_candidates:
         if isinstance(value, str) and value:
             try:
-                return base64.b64decode(value)
+                decoded = base64.b64decode(value)
+                # Twilio Media Streams send inbound audio as 8kHz mu-law.
+                # Convert to 16kHz PCM16LE so local STT can consume it.
+                if str(msg.get("event") or "").lower() == "media":
+                    pcm_8khz = audioop.ulaw2lin(decoded, 2)
+                    pcm_16khz, _ = audioop.ratecv(
+                        pcm_8khz,
+                        2,
+                        1,
+                        8000,
+                        PCM_SAMPLE_RATE,
+                        None,
+                    )
+                    return pcm_16khz
+                return decoded
             except Exception:
                 continue
     return b""
@@ -226,7 +240,7 @@ async def _stop_current_tts(websocket: WebSocket) -> None:
 
 
 async def _extract_webhook_payload(request: Request) -> dict:
-    """Best-effort parser for Exotel webhooks (JSON, form-encoded, or querystring)."""
+    """Best-effort parser for Twilio webhooks (JSON, form-encoded, or querystring)."""
     content_type = (request.headers.get("content-type") or "").lower()
 
     if "application/json" in content_type:
@@ -247,7 +261,7 @@ async def _extract_webhook_payload(request: Request) -> dict:
         except Exception:
             pass
 
-    # Fallback: Exotel (or proxies) may send webhook fields as query params.
+    # Fallback: Twilio (or proxies) may send webhook fields as query params.
     return dict(request.query_params)
 
 
@@ -279,28 +293,28 @@ def _build_public_ws_url(request: Request, call_uuid: str) -> str:
 
 @router.api_route("/answer", methods=["GET", "POST"])
 async def answer_call(request: Request):
-    """Exotel Answer URL – returns NCCO to connect call to our WebSocket."""
+    """Twilio Voice webhook – returns TwiML to connect call audio to WebSocket."""
     body = await _extract_webhook_payload(request)
-    call_uuid = str(body.get("uuid") or body.get("call_uuid") or uuid.uuid4())
+    call_uuid = str(body.get("CallSid") or body.get("uuid") or body.get("call_uuid") or uuid.uuid4())
 
     ws_url = _build_public_ws_url(request, call_uuid)
-    ncco = build_answer_ncco(ws_url)
-    return ncco
+    twiml = build_answer_twiml(ws_url)
+    return Response(content=twiml, media_type="application/xml")
 
 
 @router.api_route("/event", methods=["GET", "POST"])
 async def call_event(request: Request, db: AsyncSession = Depends(get_db)):
-    """Exotel Event URL – receives call lifecycle events."""
+    """Twilio Status Callback URL – receives call lifecycle events."""
     body = await _extract_webhook_payload(request)
-    call_uuid = body.get("uuid", "unknown")
-    status = body.get("status", "unknown")
-    caller_number = body.get("from", None)
+    call_uuid = str(body.get("CallSid") or body.get("uuid") or "unknown")
+    status = str(body.get("CallStatus") or body.get("status") or "unknown")
+    caller_number = body.get("From") or body.get("from")
 
-    if status == "started":
+    if status in {"queued", "ringing", "in-progress", "started"}:
         result = await db.execute(select(CallLog).where(CallLog.exotel_call_uuid == call_uuid))
         existing_log = result.scalar_one_or_none()
         if existing_log:
-            existing_log.call_status = "started"
+            existing_log.call_status = status
             if caller_number:
                 existing_log.caller_number = caller_number
         else:
@@ -308,7 +322,7 @@ async def call_event(request: Request, db: AsyncSession = Depends(get_db)):
                 CallLog(
                     exotel_call_uuid=call_uuid,
                     caller_number=caller_number,
-                    call_status="started",
+                    call_status=status,
                 )
             )
             await db.flush()
@@ -323,8 +337,8 @@ async def call_websocket(
     db: AsyncSession = Depends(get_db),
 ):
     """
-    Real-time audio WebSocket for Exotel call.
-    Receives PCM audio from Exotel, uses Pipecat for STT,
+    Real-time audio WebSocket for Twilio Media Streams.
+    Receives audio from Twilio, uses Pipecat for STT,
     passes transcript to agent, then uses Pipecat TTS for response.
 
     NOTE: Pipecat pipeline integration is scaffolded here.
@@ -366,8 +380,8 @@ async def call_websocket(
 
         if result["escalate_to_human"]:
             escalated = True
-            ncco = build_transfer_ncco(settings.human_staff_number)
-            await websocket.send_json({"event": "transfer", "ncco": ncco})
+            twiml = build_transfer_twiml(settings.human_staff_number)
+            await websocket.send_json({"event": "transfer", "twiml": twiml})
             return
 
         await _send_play_audio(websocket, answer)
@@ -376,7 +390,7 @@ async def call_websocket(
     # ── Pipecat placeholder ──────────────────────────────────────────────────
     # TODO: Initialise Pipecat pipeline here:
     #   pipeline = Pipeline([
-    #       ExotelAudioSource(websocket),
+    #       TwilioAudioSource(websocket),
     #       SileroVADAnalyzer(),
     #       WhisperSTTService(model="base"), # Runs locally, completely free
     #       AgentVoxaProcessor(generate_answer),
@@ -384,7 +398,7 @@ async def call_websocket(
     #           api_key=settings.elevenlabs_api_key, 
     #           voice_id=settings.elevenlabs_voice_id
     #       ),
-    #       ExotelAudioSink(websocket),
+    #       TwilioAudioSink(websocket),
     #   ])
     #   await pipeline.run()
     # ────────────────────────────────────────────────────────────────────────
@@ -415,7 +429,7 @@ async def call_websocket(
             if data.get("type") == "websocket.disconnect":
                 break
 
-            # Exotel sends binary audio frames
+            # Some providers may send binary audio frames.
             if "bytes" in data:
                 raw_chunk = data.get("bytes") or b""
                 if raw_chunk:
@@ -424,7 +438,7 @@ async def call_websocket(
                     if len(raw_audio_buffer) > max_bytes:
                         raw_audio_buffer[:] = raw_audio_buffer[-max_bytes:]
 
-            # Exotel also sends JSON control messages
+            # Twilio Media Streams send JSON control/audio messages.
             elif "text" in data:
                 try:
                     msg = json.loads(data["text"])

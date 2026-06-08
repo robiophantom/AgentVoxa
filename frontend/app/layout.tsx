@@ -1,10 +1,18 @@
 import type { Metadata } from "next";
-import { Inter } from "next/font/google";
+import { Space_Grotesk, Source_Sans_3 } from "next/font/google";
 import "@/styles/globals.css";
 import { Providers } from "@/components/Providers";
 import { Toaster } from "sonner";
 
-const inter = Inter({ subsets: ["latin"] });
+const spaceGrotesk = Space_Grotesk({
+  subsets: ["latin"],
+  variable: "--font-display",
+});
+
+const sourceSans = Source_Sans_3({
+  subsets: ["latin"],
+  variable: "--font-body",
+});
 
 export const metadata: Metadata = {
   title: "AgentVoxa – AI Receptionist",
@@ -19,7 +27,7 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en">
-      <body className={inter.className}>
+      <body className={`${spaceGrotesk.variable} ${sourceSans.variable}`}>
         <Providers>
           {children}
           <Toaster richColors position="top-right" />
