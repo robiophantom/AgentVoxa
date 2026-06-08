@@ -30,12 +30,14 @@ def get_qdrant_client() -> AsyncQdrantClient:
                 url=settings.qdrant_url,
                 api_key=settings.qdrant_api_key,
                 prefer_grpc=False,
+                timeout=5.0,
             )
         else:
             _client = AsyncQdrantClient(
                 host=settings.qdrant_host,
                 port=settings.qdrant_port,
                 prefer_grpc=False,
+                timeout=5.0,
             )
     return _client
 
