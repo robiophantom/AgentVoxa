@@ -21,8 +21,18 @@ settings = get_settings()
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     # Startup
-    await create_tables()
-    await ensure_collection()
+    try:
+        await create_tables()
+        print("Database tables verified.")
+    except Exception as e:
+        print(f"Database connection error during startup: {e}")
+
+    try:
+        await ensure_collection()
+        print("Qdrant collection verified.")
+    except Exception as e:
+        print(f"Qdrant connection error during startup: {e}")
+    
     yield
     # Shutdown (nothing to clean up for now)
 
