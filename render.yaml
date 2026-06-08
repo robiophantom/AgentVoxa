@@ -3,13 +3,10 @@ services:
   - type: web
     name: agentvoxa-backend
     env: python
+    plan: free
     rootDir: backend
     buildCommand: pip install -r requirements.txt
     startCommand: uvicorn main:app --host 0.0.0.0 --port $PORT
-    disk:
-      name: uploads
-      mountPath: /opt/render/project/src/backend/uploads
-      sizeGB: 1
     envVars:
       - key: DATABASE_URL
         fromDatabase:
@@ -36,6 +33,7 @@ services:
   - type: web
     name: agentvoxa-frontend
     env: node
+    plan: free
     rootDir: frontend
     buildCommand: npm install && npm run build
     startCommand: npm start
@@ -51,3 +49,4 @@ databases:
   - name: agentvoxa-db
     databaseName: agentvoxa
     user: agentvoxa_user
+    plan: free
