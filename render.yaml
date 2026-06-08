@@ -16,15 +16,21 @@ services:
           name: agentvoxa-db
           property: connectionString
       - key: FRONTEND_URL
-        value: https://agentvoxa-frontend.onrender.com # Placeholder, update later if custom domain used
-      # Add the rest of your API keys manually in the Render dashboard:
-      # - GEMINI_API_KEY
-      # - ELEVENLABS_API_KEY
-      # - ELEVENLABS_VOICE_ID
-      # - VAPI_API_KEY
-      # - QDRANT_URL
-      # - QDRANT_API_KEY
-      # - JWT_SECRET
+        value: https://agentvoxa-frontend.onrender.com
+      - key: GEMINI_API_KEY
+        sync: false
+      - key: ELEVENLABS_API_KEY
+        sync: false
+      - key: ELEVENLABS_VOICE_ID
+        sync: false
+      - key: VAPI_API_KEY
+        sync: false
+      - key: QDRANT_URL
+        sync: false
+      - key: QDRANT_API_KEY
+        sync: false
+      - key: SECRET_KEY
+        sync: false
 
   # Frontend Web Service
   - type: web
@@ -39,10 +45,6 @@ services:
           type: web
           name: agentvoxa-backend
           envVarKey: RENDER_EXTERNAL_URL
-      - key: NEXT_PUBLIC_WS_URL
-        # Render external URL usually starts with https://. Next.js needs wss:// for websockets.
-        # It's better to hardcode the wss:// backend URL manually in Render if this doesn't work out of the box,
-        # but NextJS can derive WS_URL from BACKEND_URL in the client if we handle it in code.
 
 databases:
   # Managed PostgreSQL Database
