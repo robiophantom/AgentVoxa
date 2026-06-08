@@ -137,6 +137,15 @@ export default function ChatInterface() {
   const shouldReconnectRef = useRef(true);
   const recognitionRef = useRef<BrowserSpeechRecognition | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const autoSpeakRef = useRef(autoSpeak);
+  const audioRef = useRef<HTMLAudioElement | null>(null);
+
+  useEffect(() => {
+    autoSpeakRef.current = autoSpeak;
+    if (!autoSpeak && audioRef.current) {
+      audioRef.current.pause();
+    }
+  }, [autoSpeak]);
 
   const persistThreads = useCallback((nextThreads: ConversationThread[]) => {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(nextThreads));
@@ -165,14 +174,30 @@ export default function ChatInterface() {
     });
   }, [persistThreads]);
 
-  const speakText = useCallback((text: string) => {
-    if (typeof window === "undefined" || !("speechSynthesis" in window)) return;
-    window.speechSynthesis.cancel();
-    const utter = new SpeechSynthesisUtterance(text);
-    utter.rate = 1.02;
-    utter.pitch = 1;
-    utter.lang = "en-US";
-    window.speechSynthesis.speak(utter);
+  const speakText = useCallback(async (text: string) => {
+    if (typeof window === "undefined" || !autoSpeakRef.current) return;
+    
+    if (audioRef.current) {
+      audioRef.current.pause();
+    }
+    
+    const url = `${BACKEND_URL}/api/chat/tts?text=${encodeURIComponent(text)}`;
+    try {
+      const audio = new Audio(url);
+      audioRef.current = audio;
+      
+      audio.onerror = () => {
+        console.warn("ElevenLabs TTS failed (likely 401/Invalid Key), falling back to browser TTS");
+        const utter = new SpeechSynthesisUtterance(text);
+        window.speechSynthesis.speak(utter);
+      };
+
+      await audio.play();
+    } catch (e) {
+      console.warn("Audio play prevented, falling back to browser TTS", e);
+      const utter = new SpeechSynthesisUtterance(text);
+      window.speechSynthesis.speak(utter);
+    }
   }, []);
 
   useEffect(() => {
@@ -258,11 +283,11 @@ export default function ChatInterface() {
       setMessages((prev) => [...prev, agentMsg]);
       setLoading(false);
 
-      if (autoSpeak) {
+      if (autoSpeakRef.current) {
         speakText(data.answer);
       }
 
-      if (data.admission_interest && !showContactForm) {
+      if (data.admission_interest) {
         setShowContactForm(true);
       }
     };
@@ -276,7 +301,7 @@ export default function ChatInterface() {
 
     ws.onerror = () => ws.close();
     wsRef.current = ws;
-  }, [autoSpeak, showContactForm, speakText]);
+  }, [speakText]);
 
   useEffect(() => {
     shouldReconnectRef.current = true;
@@ -356,7 +381,9 @@ export default function ChatInterface() {
         escalated: data.escalate_to_human,
       };
       setMessages((prev) => [...prev, responseMessage]);
-      if (autoSpeak) speakText(data.answer);
+      if (autoSpeakRef.current) {
+        speakText(data.answer);
+      }
       if (data.admission_interest) setShowContactForm(true);
     } catch {
       setMessages((prev) => [

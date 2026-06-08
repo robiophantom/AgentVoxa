@@ -7,7 +7,8 @@ from __future__ import annotations
 import logging
 from datetime import datetime, timezone
 
-from fastapi import APIRouter, Depends, Request, Response
+from fastapi import APIRouter, Depends, Request, Response, HTTPException
+import httpx
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -168,3 +169,71 @@ async def _handle_end_of_call(call_info: dict, db: AsyncSession, vapi_call_id: s
     except Exception:
         logger.exception("Failed to save end-of-call report for %s", vapi_call_id)
         await db.rollback()
+
+@router.post("/vapi/sync")
+async def sync_vapi_calls(db: AsyncSession = Depends(get_db)):
+    """
+    Syncs missing calls from Vapi API directly.
+    """
+    if not settings.vapi_api_key:
+        raise HTTPException(status_code=400, detail="Vapi API key not configured")
+        
+    headers = {"Authorization": f"Bearer {settings.vapi_api_key}"}
+    
+    async with httpx.AsyncClient() as client:
+        try:
+            resp = await client.get("https://api.vapi.ai/call", headers=headers, timeout=15.0)
+            resp.raise_for_status()
+            calls = resp.json()
+        except Exception as e:
+            logger.error(f"Failed to fetch calls from Vapi: {e}")
+            raise HTTPException(status_code=500, detail="Failed to fetch calls from Vapi")
+            
+    synced_count = 0
+    for call in calls:
+        vapi_call_id = call.get("id")
+        if not vapi_call_id:
+            continue
+            
+        result = await db.execute(select(CallLog).where(CallLog.vapi_call_id == vapi_call_id))
+        log = result.scalar_one_or_none()
+        
+        if log:
+            continue
+            
+        status = call.get("status", "completed")
+        transcript = call.get("transcript")
+        summary = call.get("summary")
+        customer = call.get("customer", {})
+        caller_number = customer.get("number")
+        
+        cost_breakdown = call.get("costBreakdown", {})
+        duration = cost_breakdown.get("duration", 0)
+        
+        log = CallLog(
+            vapi_call_id=vapi_call_id,
+            caller_number=caller_number,
+            call_status=status,
+            transcript=transcript,
+            summary=summary,
+            duration_seconds=duration,
+        )
+        if call.get("endedAt"):
+            try:
+                ended = call["endedAt"].replace("Z", "+00:00")
+                log.ended_at = datetime.fromisoformat(ended)
+            except Exception:
+                pass
+                
+        db.add(log)
+        synced_count += 1
+        
+    if synced_count > 0:
+        try:
+            await db.commit()
+        except Exception as e:
+            logger.error(f"Failed to commit synced calls: {e}")
+            await db.rollback()
+            raise HTTPException(status_code=500, detail="Failed to save synced calls")
+            
+    return {"status": "ok", "synced": synced_count}

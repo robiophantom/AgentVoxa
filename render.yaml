@@ -1,0 +1,51 @@
+services:
+  # Backend Web Service
+  - type: web
+    name: agentvoxa-backend
+    env: python
+    rootDir: backend
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn main:app --host 0.0.0.0 --port $PORT
+    disk:
+      name: uploads
+      mountPath: /opt/render/project/src/backend/uploads
+      sizeGB: 1
+    envVars:
+      - key: DATABASE_URL
+        fromDatabase:
+          name: agentvoxa-db
+          property: connectionString
+      - key: FRONTEND_URL
+        value: https://agentvoxa-frontend.onrender.com # Placeholder, update later if custom domain used
+      # Add the rest of your API keys manually in the Render dashboard:
+      # - GEMINI_API_KEY
+      # - ELEVENLABS_API_KEY
+      # - ELEVENLABS_VOICE_ID
+      # - VAPI_API_KEY
+      # - QDRANT_URL
+      # - QDRANT_API_KEY
+      # - JWT_SECRET
+
+  # Frontend Web Service
+  - type: web
+    name: agentvoxa-frontend
+    env: node
+    rootDir: frontend
+    buildCommand: npm install && npm run build
+    startCommand: npm start
+    envVars:
+      - key: NEXT_PUBLIC_BACKEND_URL
+        fromService:
+          type: web
+          name: agentvoxa-backend
+          envVarKey: RENDER_EXTERNAL_URL
+      - key: NEXT_PUBLIC_WS_URL
+        # Render external URL usually starts with https://. Next.js needs wss:// for websockets.
+        # It's better to hardcode the wss:// backend URL manually in Render if this doesn't work out of the box,
+        # but NextJS can derive WS_URL from BACKEND_URL in the client if we handle it in code.
+
+databases:
+  # Managed PostgreSQL Database
+  - name: agentvoxa-db
+    databaseName: agentvoxa
+    user: agentvoxa_user

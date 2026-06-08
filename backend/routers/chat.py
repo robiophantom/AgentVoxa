@@ -6,7 +6,8 @@ import re
 import uuid
 from collections.abc import Sequence
 
-from fastapi import APIRouter, Depends, WebSocket, WebSocketDisconnect
+from fastapi import APIRouter, Depends, WebSocket, WebSocketDisconnect, Response
+import httpx
 from pydantic import BaseModel
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -64,11 +65,11 @@ def _build_retrieval_metadata(
 
 
 def _extract_contact_data(
-    user_message: str,
     existing_logs: Sequence[ChatLog],
     contact_name: str | None,
     contact_email: str | None,
     contact_phone: str | None,
+    new_contact_data: dict[str, str] | None = None,
 ) -> dict[str, str]:
     extracted: dict[str, str] = {}
 
@@ -79,17 +80,11 @@ def _extract_contact_data(
     if contact_phone:
         extracted["phone"] = contact_phone.strip()
 
-    email_match = re.search(r"[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\\.[A-Za-z]{2,}", user_message)
-    if email_match and "email" not in extracted:
-        extracted["email"] = email_match.group(0)
-
-    phone_match = re.search(r"(?:\\+?\\d[\\d\\s().-]{7,}\\d)", user_message)
-    if phone_match and "phone" not in extracted:
-        extracted["phone"] = re.sub(r"\\s+", " ", phone_match.group(0)).strip()
-
-    name_match = re.search(r"(?:my name is|i am|this is)\\s+([A-Za-z][A-Za-z\\s]{1,40})", user_message, re.I)
-    if name_match and "name" not in extracted:
-        extracted["name"] = name_match.group(1).strip()
+    if new_contact_data:
+        for k in ("name", "email", "phone"):
+            val = new_contact_data.get(k)
+            if val and k not in extracted:
+                extracted[k] = str(val).strip()
 
     for log in reversed(existing_logs):
         payload = _get_log_captured_data(log)
@@ -163,11 +158,11 @@ async def chat(payload: ChatRequest, db: AsyncSession = Depends(get_db)):
 
     result = await generate_answer(payload.message, chat_history=chat_history)
     extracted_data = _extract_contact_data(
-        payload.message,
         existing_logs,
         payload.contact_name,
         payload.contact_email,
         payload.contact_phone,
+        result.get("contact_info", {})
     )
     conversation_summary = _build_conversation_summary(
         existing_logs,
@@ -213,7 +208,6 @@ async def chat(payload: ChatRequest, db: AsyncSession = Depends(get_db)):
 async def capture_contact(payload: ContactCaptureRequest, db: AsyncSession = Depends(get_db)):
     existing_logs = await _fetch_session_logs(db, payload.session_id)
     extracted_data = _extract_contact_data(
-        "",
         existing_logs,
         payload.contact_name,
         payload.contact_email,
@@ -285,11 +279,11 @@ async def chat_ws(websocket: WebSocket, db: AsyncSession = Depends(get_db)):
 
             result = await generate_answer(message, chat_history=chat_history)
             extracted_data = _extract_contact_data(
-                message,
                 existing_logs,
                 payload.get("contact_name"),
                 payload.get("contact_email"),
                 payload.get("contact_phone"),
+                result.get("contact_info", {})
             )
             conversation_summary = _build_conversation_summary(
                 existing_logs,
@@ -334,3 +328,30 @@ async def chat_ws(websocket: WebSocket, db: AsyncSession = Depends(get_db)):
 
     except WebSocketDisconnect:
         pass
+
+
+@router.get("/tts")
+async def get_tts(text: str):
+    from core.config import get_settings
+    settings = get_settings()
+    if not settings.elevenlabs_api_key:
+        return Response(status_code=400, content="ElevenLabs not configured")
+        
+    url = f"https://api.elevenlabs.io/v1/text-to-speech/{settings.elevenlabs_voice_id}/stream"
+    headers = {
+        "Accept": "audio/mpeg",
+        "Content-Type": "application/json",
+        "xi-api-key": settings.elevenlabs_api_key
+    }
+    # Match the default SDK payload by specifying eleven_multilingual_v2
+    # This prevents 402 Payment Required errors for accounts that default to older/restricted models.
+    data = {
+        "text": text,
+        "model_id": "eleven_multilingual_v2"
+    }
+    
+    async with httpx.AsyncClient() as client:
+        response = await client.post(url, json=data, headers=headers, timeout=15.0)
+        if response.status_code == 200:
+            return Response(content=response.content, media_type="audio/mpeg")
+        return Response(status_code=response.status_code, content=response.text)

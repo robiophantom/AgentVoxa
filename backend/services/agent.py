@@ -33,6 +33,12 @@ Guidelines:
 - If the caller/user seems interested in admission, ask for their name, email, and phone number.
 - Do not fabricate information.
 - Do not write # from chunks in the output.
+
+IMPORTANT: If the user provides their name, email, or phone number anywhere in their message, you MUST append a JSON block at the very end of your response like this:
+```json
+{"name": "...", "email": "...", "phone": "..."}
+```
+If a field is missing, leave it as an empty string. Do not include this JSON if no contact info was provided.
 """
 
 
@@ -148,10 +154,26 @@ User query: {user_message}
 Answer:"""
 
     answer = ""
+    contact_info = {}
     try:
-        model = genai.GenerativeModel("gemini-2.5-flash")
-        response = model.generate_content(prompt)
+        model = genai.GenerativeModel(settings.gemini_model_name)
+        # Respect configured max output tokens
+        
+        max_tokens = int(getattr(settings, "gemini_max_output_tokens", 0) or 0)
+        generation_config = genai.types.GenerationConfig(max_output_tokens=max_tokens) if max_tokens > 0 else None
+        response = model.generate_content(prompt, generation_config=generation_config)
         answer = response.text.strip()
+        
+        # Parse potential contact info JSON block
+        import json, re
+        match = re.search(r'```json\s*(\{.*?\})\s*```', answer, re.DOTALL)
+        if match:
+            try:
+                contact_info = json.loads(match.group(1))
+            except Exception:
+                pass
+            answer = answer[:match.start()].strip()
+            
     except Exception as exc:
         logger.exception("Gemini response generation failed")
         answer = _fallback_from_chunks(chunks)
@@ -167,4 +189,5 @@ Answer:"""
         "chunks": chunks,
         "admission_interest": admission_interest,
         "escalate_to_human": escalate,
+        "contact_info": contact_info,
     }

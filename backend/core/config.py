@@ -22,8 +22,15 @@ class Settings(BaseSettings):
 
     # Gemini
     gemini_api_key: str = ""
+    gemini_model_name: str = "gemini-2.5-flash"
+    gemini_max_output_tokens: int = 4096
+
+    # ElevenLabs
+    elevenlabs_api_key: str = "sk_68578c809ada68a8e1f35b8f3c0e5ed5fbf0d7fe3f69fdb8"
+    elevenlabs_voice_id: str = "cgSgspJ2msm6clMCkdW9"
 
     # Vapi
+    vapi_api_key: str = ""
     vapi_webhook_secret: str = ""
     vapi_phone_number: str = ""
     human_staff_number: str = ""
