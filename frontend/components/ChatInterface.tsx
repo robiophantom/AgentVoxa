@@ -20,7 +20,8 @@ import {
 import Link from "next/link";
 import { BACKEND_URL, WS_URL } from "@/lib/utils";
 
-const PHONE_NUMBER = process.env.VAPI_PHONE_NUMBER || "+1 (800) AGENT-VX";
+const PHONE_NUMBER =
+  process.env.NEXT_PUBLIC_VAPI_PHONE_NUMBER || "+1 (800) AGENT-VX";
 const STORAGE_KEY = "agentvoxa.chat.threads";
 
 type Message = {

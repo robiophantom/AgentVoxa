@@ -5,7 +5,8 @@ import { Phone, MessageCircle, Brain, Shield, Zap, Users } from "lucide-react";
 import Link from "next/link";
 import { useSession } from "next-auth/react";
 
-const PHONE_NUMBER = process.env.VAPI_PHONE_NUMBER || "+1 (800) AGENT-VX";
+const PHONE_NUMBER =
+  process.env.NEXT_PUBLIC_VAPI_PHONE_NUMBER || "+1 (800) AGENT-VX";
 
 const features = [
   {
