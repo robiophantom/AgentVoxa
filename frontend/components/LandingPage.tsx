@@ -5,7 +5,7 @@ import { Phone, MessageCircle, Brain, Shield, Zap, Users } from "lucide-react";
 import Link from "next/link";
 import { useSession } from "next-auth/react";
 
-const PHONE_NUMBER = process.env.NEXT_PUBLIC_VAPI_PHONE_NUMBER || "+1 (800) AGENT-VX";
+const PHONE_NUMBER = process.env.VAPI_PHONE_NUMBER || "+1 (800) AGENT-VX";
 
 const features = [
   {
@@ -282,7 +282,7 @@ export default function LandingPage() {
               Agent<span className="text-brand-red">Voxa</span>
             </span>
           </div>
-          <p className="text-sm">© {new Date().getFullYear()} AgentVoxa. Built for hackathon.</p>
+          <p className="text-sm">© {new Date().getFullYear()} AgentVoxa</p>
           <div className="flex gap-6 text-sm">
             <Link href="/chat" className="hover:text-white transition-colors">Chat</Link>
             <Link href="/login" className="hover:text-white transition-colors">Login</Link>
