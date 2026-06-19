@@ -59,7 +59,7 @@ async def ensure_collection() -> None:
         )
         
         # Create a payload index for full-text search on the 'text' field
-        from qdrant_client.models import TextIndexParams, TextIndexType
+        from qdrant_client.models import TextIndexParams, TextIndexType, PayloadSchemaType
         await client.create_payload_index(
             collection_name=settings.qdrant_collection_name,
             field_name="text",
@@ -70,6 +70,12 @@ async def ensure_collection() -> None:
                 max_token_len=15,
                 lowercase=True,
             ),
+        )
+        # Create a payload index for integer filtering on document_id (solves Bad Request error)
+        await client.create_payload_index(
+            collection_name=settings.qdrant_collection_name,
+            field_name="document_id",
+            field_schema=PayloadSchemaType.INTEGER,
         )
     else:
         await client.update_collection(

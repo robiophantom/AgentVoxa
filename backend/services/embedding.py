@@ -1,17 +1,23 @@
 """Embedding service using sentence-transformers all-MiniLM-L6-v2."""
 from __future__ import annotations
 
+import gc
 from functools import lru_cache
 
 import numpy as np
+import torch
 from sentence_transformers import SentenceTransformer
+
+# Limit PyTorch threads to reduce memory footprint on limited environments (e.g. Render 512MB)
+torch.set_num_threads(1)
 
 MODEL_NAME = "all-MiniLM-L6-v2"
 
 
 @lru_cache(maxsize=1)
 def _get_model() -> SentenceTransformer:
-    return SentenceTransformer(MODEL_NAME)
+    # Explicitly load on CPU to prevent unnecessary overhead
+    return SentenceTransformer(MODEL_NAME, device='cpu')
 
 
 def embed_texts(texts: list[str], batch_size: int = 8) -> list[list[float]]:
@@ -24,6 +30,10 @@ def embed_texts(texts: list[str], batch_size: int = 8) -> list[list[float]]:
         normalize_embeddings=True,
         convert_to_numpy=True,
     )
+    
+    # Free memory immediately after encoding
+    gc.collect()
+    
     return embeddings.tolist()
 
 
