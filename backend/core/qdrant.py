@@ -82,3 +82,10 @@ async def ensure_collection() -> None:
             collection_name=settings.qdrant_collection_name,
             optimizers_config=_OPTIMIZERS_CONFIG,
         )
+        # Ensure index exists even if collection was already created
+        from qdrant_client.models import PayloadSchemaType
+        await client.create_payload_index(
+            collection_name=settings.qdrant_collection_name,
+            field_name="document_id",
+            field_schema=PayloadSchemaType.INTEGER,
+        )
