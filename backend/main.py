@@ -4,6 +4,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
+from services.embedding import _get_model
 from core.config import get_settings
 from core.database import create_tables
 from core.qdrant import ensure_collection
@@ -32,6 +33,14 @@ async def lifespan(app: FastAPI):
         print("Qdrant collection verified.")
     except Exception as e:
         print(f"Qdrant connection error during startup: {e}")
+
+    # Model loaded in advance
+    try:
+        print("Loading embedding model...")
+        _get_model()  # Load now, not on first request
+        print("Embedding model loaded (all-MiniLM-L6-v2).")
+    except Exception as e:
+        print(f"Warning: Embedding model loading error: {e}")
     
     yield
     # Shutdown (nothing to clean up for now)
