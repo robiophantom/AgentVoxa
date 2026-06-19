@@ -122,7 +122,7 @@ async def ingest_document(
     client = get_qdrant_client()
 
     # Upsert in batches of 100
-    batch_size = 100
+    batch_size = 8
     for i in range(0, len(points), batch_size):
         await client.upsert(
             collection_name=settings.qdrant_collection_name,

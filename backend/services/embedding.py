@@ -14,7 +14,7 @@ def _get_model() -> SentenceTransformer:
     return SentenceTransformer(MODEL_NAME)
 
 
-def embed_texts(texts: list[str], batch_size: int = 64) -> list[list[float]]:
+def embed_texts(texts: list[str], batch_size: int = 8) -> list[list[float]]:
     """Return a list of L2-normalised float embeddings for each input text."""
     model = _get_model()
     embeddings: np.ndarray = model.encode(
