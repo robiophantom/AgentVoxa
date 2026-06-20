@@ -59,13 +59,45 @@ async def vapi_webhook(request: Request, db: AsyncSession = Depends(get_db)):
 
 async def _handle_tool_calls(message: dict, db: AsyncSession, vapi_call_id: str) -> list[dict]:
     results = []
-    tool_with_call_list = message.get("toolWithToolCallList", [])
-    
-    for item in tool_with_call_list:
-        tool_call = item.get("toolCall", {})
+    import json
+
+    # Vapi sends either `toolWithToolCallList` or `toolCalls` directly
+    items = message.get("toolWithToolCallList", [])
+    if items:
+        tool_calls = [item.get("toolCall", {}) for item in items]
+    else:
+        tool_calls = message.get("toolCalls", [])
+
+    for tool_call in tool_calls:
         tool_call_id = tool_call.get("id")
-        arguments = tool_call.get("arguments", {})
+        if not tool_call_id:
+            continue
+            
+        # Extract arguments, which might be a JSON string inside `function`
+        function_obj = tool_call.get("function", {})
+        arguments_data = function_obj.get("arguments", {})
+        
+        if isinstance(arguments_data, str):
+            try:
+                arguments = json.loads(arguments_data)
+            except Exception:
+                arguments = {}
+        else:
+            arguments = arguments_data or {}
+            
         query = arguments.get("query", "")
+
+        # Fallback for older Vapi webhook formats where arguments is directly under tool_call
+        if not query:
+            legacy_args = tool_call.get("arguments", {})
+            if isinstance(legacy_args, str):
+                try:
+                    legacy_args = json.loads(legacy_args)
+                except Exception:
+                    legacy_args = {}
+            elif not isinstance(legacy_args, dict):
+                legacy_args = {}
+            query = legacy_args.get("query", "")
         
         if not query:
             results.append({
