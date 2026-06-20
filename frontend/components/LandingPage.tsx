@@ -10,17 +10,10 @@ const PHONE_NUMBER =
 
 const features = [
   {
-    icon: Brain,
-    title: "AI-Powered Answers",
-    description:
-      "Gemini-powered agent with RAG retrieval over your knowledge base for accurate, context-aware responses.",
-    color: "text-brand-red",
-  },
-  {
     icon: Phone,
     title: "Voice Calling",
     description:
-      "Call our number and speak to the AI receptionist in real-time. Powered by Vapi.",
+      "Call our number and speak to the AI receptionist in real-time.",
     color: "text-brand-blue",
   },
   {
@@ -39,17 +32,10 @@ const features = [
   },
   {
     icon: Zap,
-    title: "Hybrid Search",
+    title: "Vast Knowledge",
     description:
-      "Vector + full-text search over uploaded documents for best-in-class retrieval accuracy.",
+      "Knows everything in detail to provide accurate and latest knowledge.",
     color: "text-brand-blue",
-  },
-  {
-    icon: Users,
-    title: "Admission Insights",
-    description:
-      "Automatically identifies prospective students and surfaces their details in the admin panel.",
-    color: "text-brand-yellow",
   },
 ];
 
@@ -160,8 +146,7 @@ export default function LandingPage() {
             transition={{ duration: 0.7, delay: 0.25 }}
             className="text-xl text-gray-500 max-w-2xl mx-auto mb-10"
           >
-            AgentVoxa handles student queries 24/7 – via chat or phone call –
-            using a knowledge base you control.
+            AgentVoxa handles users queries 24x7.
           </motion.p>
 
           <motion.div
@@ -196,7 +181,7 @@ export default function LandingPage() {
               <Phone className="w-6 h-6 text-white" />
             </div>
             <div>
-              <p className="text-sm text-blue-200">Available 24/7 – Call us at</p>
+              <p className="text-sm text-blue-200">Available 24x7 – Call us at</p>
               <p className="text-2xl font-bold">{PHONE_NUMBER}</p>
             </div>
           </div>
@@ -224,7 +209,7 @@ export default function LandingPage() {
             </p>
           </motion.div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-2 gap-8">
             {features.map((feature, i) => (
               <motion.div
                 key={feature.title}
