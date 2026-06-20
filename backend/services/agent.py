@@ -27,6 +27,7 @@ admissions, fees, facilities, scholarships, and campus life.
 
 Guidelines:
 - Be warm, professional, and provide detailed, comprehensive answers.
+- Do NOT introduce yourself, say 'hello', or use greetings in your responses. You have already greeted the user. Dive directly into answering their questions.
 - Answer only based on the context provided below.
 - If the context does not contain enough information to answer confidently, say exactly:
   "I'm sorry, I don't have enough information to answer that. Please call our human staff."
@@ -64,7 +65,7 @@ def _build_chat_history(chat_history: list[dict] | None) -> str:
         return "No prior conversation."
 
     formatted: list[str] = []
-    for turn in chat_history[-12:]:
+    for turn in chat_history[-40:]:
         role = turn.get("role", "user")
         content = str(turn.get("content", "")).strip()
         if not content:
@@ -125,6 +126,7 @@ def _fallback_from_chunks(chunks: list[dict]) -> str:
 async def generate_answer(
     user_message: str,
     chat_history: list[dict] | None = None,
+    extracted_data: dict[str, str] | None = None,
 ) -> dict:
     """
     Returns:
@@ -139,7 +141,12 @@ async def generate_answer(
     context = _build_context(chunks)
     history_text = _build_chat_history(chat_history)
 
-    prompt = f"""{SYSTEM_PROMPT}
+    if extracted_data and len(extracted_data) > 0:
+        contact_rule = f"- You have already collected the following contact info: {extracted_data}. DO NOT ask the user for these details again."
+    else:
+        contact_rule = "- If the caller/user seems interested in admission, ask for their name, email, and phone number."
+
+    prompt = f"""{SYSTEM_PROMPT.replace('- If the caller/user seems interested in admission, ask for their name, email, and phone number.', contact_rule)}
 
 --- CONTEXT START ---
 {context}

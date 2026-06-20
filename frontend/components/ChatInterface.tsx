@@ -143,8 +143,13 @@ export default function ChatInterface() {
 
   useEffect(() => {
     autoSpeakRef.current = autoSpeak;
-    if (!autoSpeak && audioRef.current) {
-      audioRef.current.pause();
+    if (!autoSpeak) {
+      if (audioRef.current) {
+        audioRef.current.pause();
+      }
+      if (typeof window !== "undefined" && window.speechSynthesis) {
+        window.speechSynthesis.cancel();
+      }
     }
   }, [autoSpeak]);
 
@@ -180,6 +185,9 @@ export default function ChatInterface() {
     
     if (audioRef.current) {
       audioRef.current.pause();
+    }
+    if (typeof window !== "undefined" && window.speechSynthesis) {
+      window.speechSynthesis.cancel();
     }
     
     const url = `${BACKEND_URL}/api/chat/tts?text=${encodeURIComponent(text)}`;
@@ -288,8 +296,13 @@ export default function ChatInterface() {
         speakText(data.answer);
       }
 
-      if (data.admission_interest) {
+      if (data.admission_interest && !contactInfo.name && !contactInfo.email && !contactInfo.phone) {
         setShowContactForm(true);
+      }
+
+      if (data.captured_data && Object.keys(data.captured_data).length > 0) {
+        setContactInfo((prev) => ({ ...prev, ...data.captured_data }));
+        setShowContactForm(false);
       }
     };
 
@@ -385,7 +398,13 @@ export default function ChatInterface() {
       if (autoSpeakRef.current) {
         speakText(data.answer);
       }
-      if (data.admission_interest) setShowContactForm(true);
+      if (data.admission_interest && !contactInfo.name && !contactInfo.email && !contactInfo.phone) {
+        setShowContactForm(true);
+      }
+      if (data.captured_data && Object.keys(data.captured_data).length > 0) {
+        setContactInfo((prev) => ({ ...prev, ...data.captured_data }));
+        setShowContactForm(false);
+      }
     } catch {
       setMessages((prev) => [
         ...prev,
@@ -505,11 +524,11 @@ export default function ChatInterface() {
   };
 
   return (
-    <div className="relative min-h-screen overflow-hidden bg-gradient-to-br from-[#FFF3E8] via-[#F8FBFF] to-[#FFE5E7]">
+    <div className="relative h-screen overflow-hidden bg-gradient-to-br from-[#FFF3E8] via-[#F8FBFF] to-[#FFE5E7]">
       <div className="pointer-events-none absolute -left-32 top-8 h-72 w-72 rounded-full bg-brand-yellow/20 blur-3xl" />
       <div className="pointer-events-none absolute -right-24 bottom-20 h-80 w-80 rounded-full bg-brand-red/15 blur-3xl" />
 
-      <div className="relative z-10 flex min-h-screen">
+      <div className="relative z-10 flex h-screen">
         <aside className="hidden w-80 border-r border-white/40 bg-white/55 backdrop-blur-xl md:flex md:flex-col">
           <div className="border-b border-white/60 px-5 py-4">
             <Link href="/" className="mb-4 flex items-center gap-2">

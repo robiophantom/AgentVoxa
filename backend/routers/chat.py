@@ -156,7 +156,14 @@ async def chat(payload: ChatRequest, db: AsyncSession = Depends(get_db)):
         chat_history.append({"role": "user", "content": log.user_message})
         chat_history.append({"role": "assistant", "content": log.agent_response})
 
-    result = await generate_answer(payload.message, chat_history=chat_history)
+    existing_extracted = _extract_contact_data(
+        existing_logs,
+        payload.contact_name,
+        payload.contact_email,
+        payload.contact_phone,
+    )
+    result = await generate_answer(payload.message, chat_history=chat_history, extracted_data=existing_extracted)
+    
     extracted_data = _extract_contact_data(
         existing_logs,
         payload.contact_name,
@@ -164,6 +171,10 @@ async def chat(payload: ChatRequest, db: AsyncSession = Depends(get_db)):
         payload.contact_phone,
         result.get("contact_info", {})
     )
+
+    if len(extracted_data) >= 1:
+        result["admission_interest"] = False
+
     conversation_summary = _build_conversation_summary(
         existing_logs,
         payload.message,
@@ -277,7 +288,14 @@ async def chat_ws(websocket: WebSocket, db: AsyncSession = Depends(get_db)):
                 chat_history.append({"role": "user", "content": log.user_message})
                 chat_history.append({"role": "assistant", "content": log.agent_response})
 
-            result = await generate_answer(message, chat_history=chat_history)
+            existing_extracted = _extract_contact_data(
+                existing_logs,
+                payload.get("contact_name"),
+                payload.get("contact_email"),
+                payload.get("contact_phone"),
+            )
+            result = await generate_answer(message, chat_history=chat_history, extracted_data=existing_extracted)
+            
             extracted_data = _extract_contact_data(
                 existing_logs,
                 payload.get("contact_name"),
@@ -285,6 +303,10 @@ async def chat_ws(websocket: WebSocket, db: AsyncSession = Depends(get_db)):
                 payload.get("contact_phone"),
                 result.get("contact_info", {})
             )
+
+            if len(extracted_data) >= 1:
+                result["admission_interest"] = False
+
             conversation_summary = _build_conversation_summary(
                 existing_logs,
                 message,
