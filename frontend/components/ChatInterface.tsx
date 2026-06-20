@@ -582,7 +582,10 @@ export default function ChatInterface() {
                 </div>
                 <div>
                   <p className="text-sm font-semibold text-gray-900">Live Assistant</p>
-                  <p className="text-xs text-gray-500">Session: {currentSessionId.slice(0, 8) || "--------"}</p>
+                  <p className="text-xs text-emerald-600 font-medium flex items-center gap-1.5">
+                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
+                    Online
+                  </p>
                 </div>
               </div>
 

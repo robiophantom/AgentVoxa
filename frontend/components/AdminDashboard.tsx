@@ -628,7 +628,7 @@ export default function AdminDashboard() {
                   <div className="rounded-2xl border border-gray-100 bg-white p-5 shadow-sm">
                     <div className="mb-4 flex flex-wrap items-center gap-2">
                       <span className="rounded-full bg-brand-blue/10 px-2.5 py-1 text-xs font-medium text-brand-blue">
-                        Session {selectedConversation.session_id.slice(0, 8)}…
+                        Chat Conversation
                       </span>
                       {selectedConversation.summary && (
                         <span className="rounded-full bg-brand-yellow/20 px-2.5 py-1 text-xs font-medium text-yellow-700">
@@ -697,7 +697,7 @@ export default function AdminDashboard() {
                       <div className="flex justify-between items-start mb-3 gap-3 pr-8">
                         <div className="flex items-center gap-2">
                           <span className="text-xs text-gray-400 font-mono">
-                            {log.session_id.slice(0, 8)}…
+                            Conversation
                           </span>
                           {log.admission_interest && (
                             <span className="bg-brand-yellow/20 text-yellow-700 text-xs font-medium px-2 py-0.5 rounded-full">
