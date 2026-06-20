@@ -96,8 +96,8 @@ async def ingest_document(
     if not chunks:
         return []
 
-    # Generate embeddings in batch, reduced size to prevent PyTorch OOM
-    embeddings = embed_texts(chunks, batch_size=2)
+    # Generate embeddings in batch, use 20 to reduce API calls and stay under 15 RPM
+    embeddings = embed_texts(chunks, batch_size=20)
 
     # Build Qdrant points
     point_ids: list[str] = []

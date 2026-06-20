@@ -243,20 +243,45 @@ export default function AdminDashboard() {
     }
 
     try {
+      toast.loading("Uploading and processing documents...", { id: "upload-toast" });
       const res = await fetch(`${BACKEND_URL}/api/documents/upload`, {
         method: "POST",
         headers: getHeaders(),
         body: formData,
       });
+      
       if (res.ok) {
-        toast.success("Documents uploaded and processing started!");
-        fetchDocuments();
+        const uploadedDocs = await res.json();
+        const docIds = uploadedDocs.map((d: any) => d.id);
+        
+        let allProcessed = false;
+        while (!allProcessed) {
+          await new Promise(r => setTimeout(r, 2000));
+          const checkRes = await fetch(`${BACKEND_URL}/api/documents/`, { headers: getHeaders() });
+          if (checkRes.ok) {
+            const allDocs: Document[] = await checkRes.json();
+            setDocuments(allDocs);
+            
+            const ourDocs = allDocs.filter((d) => docIds.includes(d.id));
+            const stillProcessing = ourDocs.some((d) => d.status === "processing");
+            
+            if (!stillProcessing) {
+              allProcessed = true;
+              const anyFailed = ourDocs.some((d) => d.status === "failed");
+              if (anyFailed) {
+                toast.error("Some documents failed to process.", { id: "upload-toast" });
+              } else {
+                toast.success("Documents processed successfully!", { id: "upload-toast" });
+              }
+            }
+          }
+        }
       } else {
         const err = await res.json();
-        toast.error(err.detail || "Upload failed");
+        toast.error(err.detail || "Upload failed", { id: "upload-toast" });
       }
     } catch {
-      toast.error("Upload failed");
+      toast.error("Upload failed", { id: "upload-toast" });
     } finally {
       setUploading(false);
       e.target.value = "";
@@ -543,7 +568,7 @@ export default function AdminDashboard() {
                               ) : (
                                 <AlertCircle className="w-3 h-3" />
                               )}
-                              {doc.status}
+                              {doc.status === "ready" ? "processed" : doc.status}
                             </span>
                           </td>
                           <td className="px-6 py-4 text-gray-500">{doc.chunk_count}</td>

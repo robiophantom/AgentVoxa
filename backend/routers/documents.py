@@ -8,7 +8,7 @@ from pydantic import BaseModel
 from sqlalchemy import select, update, delete
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from core.database import get_db, async_sessionmaker
+from core.database import get_db, AsyncSessionLocal
 from core.security import require_role
 from models.document import Document, DocumentStatus
 from models.user import User, UserRole
@@ -29,7 +29,10 @@ class BulkDeleteDocsRequest(BaseModel):
 
 
 async def background_ingest_documents(doc_ids: list[int], file_names: list[str], contents: list[bytes]):
-    async with async_sessionmaker() as db:
+    import logging
+    logger = logging.getLogger(__name__)
+
+    async with AsyncSessionLocal() as db:
         for doc_id, file_name, content in zip(doc_ids, file_names, contents):
             try:
                 point_ids = await ingest_document(doc_id, file_name, content)
@@ -38,13 +41,16 @@ async def background_ingest_documents(doc_ids: list[int], file_names: list[str],
                     .where(Document.id == doc_id)
                     .values(chunk_count=len(point_ids), status=DocumentStatus.ready)
                 )
+                await db.commit()
             except Exception as exc:
+                logger.error(f"Failed to ingest document {doc_id}: {exc}")
+                await db.rollback()
                 await db.execute(
                     update(Document)
                     .where(Document.id == doc_id)
                     .values(status=DocumentStatus.failed, error_message=str(exc))
                 )
-        await db.commit()
+                await db.commit()
 
 
 @router.post("/upload", status_code=status.HTTP_201_CREATED)
@@ -63,20 +69,22 @@ async def upload_document(
         content = await file.read()
         mime_type = file.content_type or "application/octet-stream"
 
+        filename_str = file.filename or "unknown"
         try:
-            validate_file(file.filename, content, mime_type)
+            validate_file(filename_str, content, mime_type)
         except ValueError as exc:
             # Skip invalid files but continue others
             continue
 
-        safe_name = f"{uuid.uuid4()}_{file.filename}"
+        base_filename = os.path.basename(filename_str)
+        safe_name = f"{uuid.uuid4()}_{base_filename}"
         file_path = os.path.join(UPLOAD_DIR, safe_name)
         with open(file_path, "wb") as f:
             f.write(content)
 
         doc = Document(
             filename=safe_name,
-            original_name=file.filename,
+            original_name=base_filename,
             mime_type=mime_type,
             size_bytes=len(content),
             status=DocumentStatus.processing,
@@ -125,6 +133,28 @@ async def list_documents(
     ]
 
 
+@router.delete("/bulk", status_code=status.HTTP_204_NO_CONTENT)
+async def bulk_delete_documents(
+    payload: BulkDeleteDocsRequest,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(require_role(UserRole.admin)),
+):
+    if not payload.ids:
+        return
+        
+    result = await db.execute(select(Document).where(Document.id.in_(payload.ids)))
+    docs = result.scalars().all()
+    
+    for doc in docs:
+        await delete_document_chunks(doc.id)
+        file_path = os.path.join(UPLOAD_DIR, doc.filename)
+        if os.path.exists(file_path):
+            os.remove(file_path)
+            
+    await db.execute(delete(Document).where(Document.id.in_(payload.ids)))
+    await db.commit()
+
+
 @router.delete("/{document_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_document(
     document_id: int,
@@ -148,23 +178,3 @@ async def delete_document(
     await db.commit()
 
 
-@router.delete("/bulk", status_code=status.HTTP_204_NO_CONTENT)
-async def bulk_delete_documents(
-    payload: BulkDeleteDocsRequest,
-    db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(require_role(UserRole.admin)),
-):
-    if not payload.ids:
-        return
-        
-    result = await db.execute(select(Document).where(Document.id.in_(payload.ids)))
-    docs = result.scalars().all()
-    
-    for doc in docs:
-        await delete_document_chunks(doc.id)
-        file_path = os.path.join(UPLOAD_DIR, doc.filename)
-        if os.path.exists(file_path):
-            os.remove(file_path)
-            
-    await db.execute(delete(Document).where(Document.id.in_(payload.ids)))
-    await db.commit()

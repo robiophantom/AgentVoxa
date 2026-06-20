@@ -13,7 +13,7 @@ settings = get_settings()
 if settings.gemini_api_key:
     genai.configure(api_key=settings.gemini_api_key)
 
-MODEL_NAME = "models/text-embedding-004"
+MODEL_NAME = "models/gemini-embedding-2"
 
 @retry(
     wait=wait_exponential(multiplier=1, min=2, max=10),
@@ -26,7 +26,8 @@ def _call_gemini_embed(texts: list[str]) -> list[list[float]]:
         result = genai.embed_content(
             model=MODEL_NAME,
             content=texts,
-            task_type="retrieval_document"
+            task_type="retrieval_document",
+            output_dimensionality=settings.embedding_dim
         )
         # The result['embedding'] is either a list of floats (if single string passed) 
         # or a list of lists of floats (if list passed). 
