@@ -20,7 +20,7 @@ class Settings(BaseSettings):
     qdrant_host: str = "localhost"
     qdrant_port: int = 6333
     qdrant_collection_name: str = "agentvoxa_docs"
-    embedding_dim: int = 384  # all-MiniLM-L6-v2
+    embedding_dim: int = 768  # Gemini text-embedding-004
 
     # Gemini
     gemini_api_key: str = ""

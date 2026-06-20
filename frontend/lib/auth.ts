@@ -4,7 +4,10 @@ import CredentialsProvider from "next-auth/providers/credentials";
 const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL || process.env.BACKEND_URL || "http://localhost:8000";
 
 export const authOptions: NextAuthOptions = {
-  session: { strategy: "jwt" },
+  session: { 
+    strategy: "jwt",
+    maxAge: 60 * 60, // 1 hour to match backend token expiry
+  },
   secret: process.env.NEXTAUTH_SECRET,
   pages: {
     signIn: "/login",

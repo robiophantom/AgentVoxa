@@ -568,6 +568,14 @@ export default function ChatInterface() {
               </div>
 
               <div className="flex items-center gap-3">
+                <button
+                  onClick={createNewConversation}
+                  className="hidden items-center gap-1.5 rounded-full border border-red-500/20 bg-red-50 px-3 py-1.5 text-sm font-medium text-red-600 transition hover:bg-red-100 sm:flex"
+                  title="Clear chat and start over"
+                >
+                  <X className="h-4 w-4" />
+                  Clear Chat
+                </button>
                 <a
                   href={`tel:${PHONE_NUMBER}`}
                   className="hidden items-center gap-1.5 rounded-full border border-brand-blue/20 bg-white/70 px-3 py-1.5 text-sm font-medium text-brand-blue transition hover:bg-white sm:flex"
@@ -631,7 +639,7 @@ export default function ChatInterface() {
             )}
           </AnimatePresence>
 
-          <div className="flex-1 overflow-y-auto px-4 py-6">
+          <div className="flex-1 overflow-y-auto px-4 py-6 scrollbar-thin scrollbar-track-transparent scrollbar-thumb-brand-blue/20 hover:scrollbar-thumb-brand-blue/40">
             <div className="mx-auto w-full max-w-5xl space-y-4">
               <AnimatePresence initial={false}>
                 {messages.map((msg) => (

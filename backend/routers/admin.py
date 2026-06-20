@@ -2,8 +2,9 @@
 import json
 from collections import defaultdict
 
-from fastapi import APIRouter, Depends
-from sqlalchemy import select, func
+from fastapi import APIRouter, Depends, HTTPException, status
+from pydantic import BaseModel
+from sqlalchemy import select, func, delete
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from core.database import get_db
@@ -12,6 +13,9 @@ from models.logs import ChatLog, CallLog, InterestLevel
 from models.user import User, UserRole
 
 router = APIRouter(prefix="/admin", tags=["admin"])
+
+class BulkDeleteRequest(BaseModel):
+    ids: list[int]
 
 
 def _safe_json_load(text: str | None) -> dict:
@@ -151,6 +155,20 @@ async def get_chat_conversation_detail(
         ],
     }
 
+class BulkDeleteSessionsRequest(BaseModel):
+    session_ids: list[str]
+
+@router.delete("/chat-sessions", status_code=status.HTTP_204_NO_CONTENT)
+async def bulk_delete_chat_sessions(
+    payload: BulkDeleteSessionsRequest,
+    db: AsyncSession = Depends(get_db),
+    _: User = Depends(require_role(UserRole.admin)),
+):
+    if not payload.session_ids:
+        return
+    await db.execute(delete(ChatLog).where(ChatLog.session_id.in_(payload.session_ids)))
+    await db.commit()
+
 
 @router.get("/call-logs")
 async def get_call_logs(
@@ -180,6 +198,18 @@ async def get_call_logs(
         }
         for l in logs
     ]
+
+
+@router.delete("/call-logs", status_code=status.HTTP_204_NO_CONTENT)
+async def bulk_delete_call_logs(
+    payload: BulkDeleteRequest,
+    db: AsyncSession = Depends(get_db),
+    _: User = Depends(require_role(UserRole.admin)),
+):
+    if not payload.ids:
+        return
+    await db.execute(delete(CallLog).where(CallLog.id.in_(payload.ids)))
+    await db.commit()
 
 
 @router.get("/interested-users")

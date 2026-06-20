@@ -113,6 +113,10 @@ export default function AdminDashboard() {
   const [uploading, setUploading] = useState(false);
   const [loadingData, setLoadingData] = useState(false);
 
+  const [selectedDocs, setSelectedDocs] = useState<number[]>([]);
+  const [selectedChatSessions, setSelectedChatSessions] = useState<string[]>([]);
+  const [selectedCallLogs, setSelectedCallLogs] = useState<number[]>([]);
+
   // Auth guard
   useEffect(() => {
     if (status === "unauthenticated") {
@@ -214,6 +218,9 @@ export default function AdminDashboard() {
   useEffect(() => {
     if (status !== "authenticated") return;
     fetchStats();
+    setSelectedDocs([]);
+    setSelectedChatSessions([]);
+    setSelectedCallLogs([]);
     if (activeTab === "knowledge-base") fetchDocuments();
     else if (activeTab === "chat-logs") {
       setSelectedConversation(null);
@@ -227,11 +234,13 @@ export default function AdminDashboard() {
   }, [activeTab, status]);
 
   const handleUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
+    const files = e.target.files;
+    if (!files || files.length === 0) return;
     setUploading(true);
     const formData = new FormData();
-    formData.append("file", file);
+    for (let i = 0; i < files.length; i++) {
+      formData.append("files", files[i]);
+    }
 
     try {
       const res = await fetch(`${BACKEND_URL}/api/documents/upload`, {
@@ -240,7 +249,7 @@ export default function AdminDashboard() {
         body: formData,
       });
       if (res.ok) {
-        toast.success("Document uploaded and processed!");
+        toast.success("Documents uploaded and processing started!");
         fetchDocuments();
       } else {
         const err = await res.json();
@@ -268,6 +277,57 @@ export default function AdminDashboard() {
     } catch {
       toast.error("Delete failed");
     }
+  };
+
+  const handleBulkDeleteDocs = async () => {
+    if (!selectedDocs.length) return;
+    if (!confirm(`Delete ${selectedDocs.length} documents?`)) return;
+    try {
+      const res = await fetch(`${BACKEND_URL}/api/documents/bulk`, {
+        method: "DELETE",
+        headers: { ...getHeaders(), "Content-Type": "application/json" },
+        body: JSON.stringify({ ids: selectedDocs }),
+      });
+      if (res.ok) {
+        toast.success("Documents deleted");
+        setSelectedDocs([]);
+        fetchDocuments();
+      }
+    } catch { toast.error("Delete failed"); }
+  };
+
+  const handleBulkDeleteChatSessions = async () => {
+    if (!selectedChatSessions.length) return;
+    if (!confirm(`Delete ${selectedChatSessions.length} chat sessions?`)) return;
+    try {
+      const res = await fetch(`${BACKEND_URL}/api/admin/chat-sessions`, {
+        method: "DELETE",
+        headers: { ...getHeaders(), "Content-Type": "application/json" },
+        body: JSON.stringify({ session_ids: selectedChatSessions }),
+      });
+      if (res.ok) {
+        toast.success("Chat sessions deleted");
+        setSelectedChatSessions([]);
+        fetchChatConversations();
+      }
+    } catch { toast.error("Delete failed"); }
+  };
+
+  const handleBulkDeleteCallLogs = async () => {
+    if (!selectedCallLogs.length) return;
+    if (!confirm(`Delete ${selectedCallLogs.length} call logs?`)) return;
+    try {
+      const res = await fetch(`${BACKEND_URL}/api/admin/call-logs`, {
+        method: "DELETE",
+        headers: { ...getHeaders(), "Content-Type": "application/json" },
+        body: JSON.stringify({ ids: selectedCallLogs }),
+      });
+      if (res.ok) {
+        toast.success("Call logs deleted");
+        setSelectedCallLogs([]);
+        fetchCallLogs();
+      }
+    } catch { toast.error("Delete failed"); }
   };
 
   const tabs: { id: Tab; label: string; icon: any }[] = [
@@ -365,29 +425,59 @@ export default function AdminDashboard() {
             >
               <div className="flex justify-between items-center">
                 <p className="text-sm text-gray-500">
-                  Upload PDF, DOCX, or Markdown files (max 50 MB).
+                  Upload files or entire folders (max 50 MB per file).
                 </p>
-                <label className="cursor-pointer">
-                  <input
-                    type="file"
-                    accept=".pdf,.docx,.md,.txt"
-                    className="hidden"
-                    onChange={handleUpload}
-                    disabled={uploading}
-                  />
-                  <span
-                    className={`flex items-center gap-2 bg-brand-red text-white px-4 py-2.5 rounded-xl text-sm font-medium hover:bg-red-700 transition-colors ${
-                      uploading ? "opacity-60 cursor-not-allowed" : ""
-                    }`}
-                  >
-                    {uploading ? (
-                      <Loader2 className="w-4 h-4 animate-spin" />
-                    ) : (
+                <div className="flex items-center gap-3">
+                  {selectedDocs.length > 0 && (
+                    <button
+                      onClick={handleBulkDeleteDocs}
+                      className="flex items-center gap-2 bg-red-50 text-red-600 px-4 py-2.5 rounded-xl text-sm font-medium hover:bg-red-100 transition-colors"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                      Delete Selected ({selectedDocs.length})
+                    </button>
+                  )}
+                  <label className="cursor-pointer">
+                    <input
+                      type="file"
+                      accept=".pdf,.docx,.md,.txt"
+                      className="hidden"
+                      onChange={handleUpload}
+                      disabled={uploading}
+                      multiple
+                    />
+                    <span
+                      className={`flex items-center gap-2 bg-white border border-gray-200 text-gray-700 px-4 py-2.5 rounded-xl text-sm font-medium hover:bg-gray-50 transition-colors ${
+                        uploading ? "opacity-60 cursor-not-allowed" : ""
+                      }`}
+                    >
                       <Upload className="w-4 h-4" />
-                    )}
-                    {uploading ? "Processing…" : "Upload Document"}
-                  </span>
-                </label>
+                      Upload Files
+                    </span>
+                  </label>
+                  <label className="cursor-pointer">
+                    <input
+                      type="file"
+                      className="hidden"
+                      onChange={handleUpload}
+                      disabled={uploading}
+                      {...{ webkitdirectory: "", directory: "" } as any}
+                      multiple
+                    />
+                    <span
+                      className={`flex items-center gap-2 bg-brand-red text-white px-4 py-2.5 rounded-xl text-sm font-medium hover:bg-red-700 transition-colors ${
+                        uploading ? "opacity-60 cursor-not-allowed" : ""
+                      }`}
+                    >
+                      {uploading ? (
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                      ) : (
+                        <Upload className="w-4 h-4" />
+                      )}
+                      Upload Folder
+                    </span>
+                  </label>
+                </div>
               </div>
 
               {loadingData ? (
@@ -404,6 +494,14 @@ export default function AdminDashboard() {
                   <table className="w-full text-sm">
                     <thead className="bg-gray-50 border-b border-gray-100">
                       <tr>
+                        <th className="px-6 py-4 w-10">
+                          <input
+                            type="checkbox"
+                            checked={documents.length > 0 && selectedDocs.length === documents.length}
+                            onChange={(e) => setSelectedDocs(e.target.checked ? documents.map(d => d.id) : [])}
+                            className="rounded border-gray-300 text-brand-red focus:ring-brand-red"
+                          />
+                        </th>
                         <th className="text-left px-6 py-4 font-semibold text-gray-700">Name</th>
                         <th className="text-left px-6 py-4 font-semibold text-gray-700">Status</th>
                         <th className="text-left px-6 py-4 font-semibold text-gray-700">Chunks</th>
@@ -415,6 +513,16 @@ export default function AdminDashboard() {
                     <tbody className="divide-y divide-gray-50">
                       {documents.map((doc) => (
                         <tr key={doc.id} className="hover:bg-gray-50 transition-colors">
+                          <td className="px-6 py-4">
+                            <input
+                              type="checkbox"
+                              checked={selectedDocs.includes(doc.id)}
+                              onChange={(e) => setSelectedDocs(e.target.checked 
+                                ? [...selectedDocs, doc.id] 
+                                : selectedDocs.filter(id => id !== doc.id))}
+                              className="rounded border-gray-300 text-brand-red focus:ring-brand-red"
+                            />
+                          </td>
                           <td className="px-6 py-4 font-medium text-gray-900">
                             {doc.original_name}
                           </td>
@@ -463,6 +571,17 @@ export default function AdminDashboard() {
           {/* ── Chat Logs ── */}
           {activeTab === "chat-logs" && (
             <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
+              <div className="flex justify-end mb-4 h-10">
+                {selectedChatSessions.length > 0 && !selectedConversation && (
+                  <button
+                    onClick={handleBulkDeleteChatSessions}
+                    className="flex items-center gap-2 bg-red-50 text-red-600 px-4 py-2 rounded-xl text-sm font-medium hover:bg-red-100 transition-colors"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                    Delete Selected ({selectedChatSessions.length})
+                  </button>
+                )}
+              </div>
               {loadingData ? (
                 <div className="flex justify-center py-12">
                   <Loader2 className="w-6 h-6 text-brand-red animate-spin" />
@@ -538,9 +657,19 @@ export default function AdminDashboard() {
                   {chatConversations.map((log) => (
                     <div
                       key={log.session_id}
-                      className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5 hover:border-brand-blue/20 transition"
+                      className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5 hover:border-brand-blue/20 transition relative"
                     >
-                      <div className="flex justify-between items-start mb-3 gap-3">
+                      <div className="absolute top-5 right-5">
+                        <input
+                          type="checkbox"
+                          checked={selectedChatSessions.includes(log.session_id)}
+                          onChange={(e) => setSelectedChatSessions(e.target.checked 
+                            ? [...selectedChatSessions, log.session_id] 
+                            : selectedChatSessions.filter(id => id !== log.session_id))}
+                          className="rounded border-gray-300 text-brand-red focus:ring-brand-red w-5 h-5 cursor-pointer"
+                        />
+                      </div>
+                      <div className="flex justify-between items-start mb-3 gap-3 pr-8">
                         <div className="flex items-center gap-2">
                           <span className="text-xs text-gray-400 font-mono">
                             {log.session_id.slice(0, 8)}…
@@ -602,6 +731,17 @@ export default function AdminDashboard() {
           {/* ── Call Logs ── */}
           {activeTab === "call-logs" && (
             <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
+              <div className="flex justify-end mb-4 h-10">
+                {selectedCallLogs.length > 0 && (
+                  <button
+                    onClick={handleBulkDeleteCallLogs}
+                    className="flex items-center gap-2 bg-red-50 text-red-600 px-4 py-2 rounded-xl text-sm font-medium hover:bg-red-100 transition-colors"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                    Delete Selected ({selectedCallLogs.length})
+                  </button>
+                )}
+              </div>
               {loadingData ? (
                 <div className="flex justify-center py-12">
                   <Loader2 className="w-6 h-6 text-brand-red animate-spin" />
@@ -616,9 +756,19 @@ export default function AdminDashboard() {
                   {callLogs.map((log) => (
                     <div
                       key={log.id}
-                      className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5"
+                      className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5 relative"
                     >
-                      <div className="flex justify-between items-start mb-2">
+                      <div className="absolute top-5 right-5">
+                        <input
+                          type="checkbox"
+                          checked={selectedCallLogs.includes(log.id)}
+                          onChange={(e) => setSelectedCallLogs(e.target.checked 
+                            ? [...selectedCallLogs, log.id] 
+                            : selectedCallLogs.filter(id => id !== log.id))}
+                          className="rounded border-gray-300 text-brand-red focus:ring-brand-red w-5 h-5 cursor-pointer"
+                        />
+                      </div>
+                      <div className="flex justify-between items-start mb-2 pr-8">
                         <div className="flex items-center gap-2">
                           <Phone className="w-4 h-4 text-brand-blue" />
                           <span className="font-medium text-gray-800 text-sm">

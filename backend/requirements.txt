@@ -17,8 +17,7 @@ psycopg2-binary==2.9.11
 qdrant-client==1.9.1
 
 # Embeddings
-sentence-transformers==3.0.1
-torch==2.6.0
+# (Switched to Gemini API, removing sentence-transformers and torch)
 
 # Document processing
 pypdf==4.2.0
