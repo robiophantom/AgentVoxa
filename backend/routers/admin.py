@@ -224,17 +224,22 @@ async def get_interested_users(
         .order_by(ChatLog.created_at.desc())
     )
     logs = result.scalars().all()
-    return [
-        {
-            "session_id": l.session_id,
-            "contact_name": l.contact_name,
-            "contact_email": l.contact_email,
-            "contact_phone": l.contact_phone,
-            "sample_message": l.user_message[:120],
-            "created_at": l.created_at,
-        }
-        for l in logs
-    ]
+    
+    seen_sessions = set()
+    unique_logs = []
+    for l in logs:
+        if l.session_id not in seen_sessions:
+            seen_sessions.add(l.session_id)
+            unique_logs.append({
+                "session_id": l.session_id,
+                "contact_name": l.contact_name,
+                "contact_email": l.contact_email,
+                "contact_phone": l.contact_phone,
+                "sample_message": l.user_message[:120],
+                "created_at": l.created_at,
+            })
+            
+    return unique_logs
 
 
 @router.get("/stats")

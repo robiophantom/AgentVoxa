@@ -18,6 +18,7 @@ import {
   Sparkles,
 } from "lucide-react";
 import Link from "next/link";
+import { toast } from "sonner";
 import { BACKEND_URL, WS_URL } from "@/lib/utils";
 
 const PHONE_NUMBER =
@@ -454,6 +455,16 @@ export default function ChatInterface() {
   const saveContactDetails = async () => {
     if (!currentSessionId) return;
     if (!contactInfo.name && !contactInfo.email && !contactInfo.phone) return;
+
+    if (contactInfo.email && !/^[^\s@]+@gmail\.com$/i.test(contactInfo.email)) {
+      toast.error("Please enter a valid Gmail address (@gmail.com)");
+      return;
+    }
+
+    if (contactInfo.phone && !/^\+?[\d\s-]{10,15}$/.test(contactInfo.phone)) {
+      toast.error("Please enter a valid phone number (10-15 digits)");
+      return;
+    }
 
     const contactLine = [contactInfo.name, contactInfo.email, contactInfo.phone]
       .filter(Boolean)
