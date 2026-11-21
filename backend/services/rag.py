@@ -6,8 +6,11 @@ from qdrant_client.models import Filter, FieldCondition, MatchText
 from core.config import get_settings
 from core.qdrant import get_qdrant_client
 from services.embedding import embed_single
+import time
 
 settings = get_settings()
+_search_cache: dict[str, tuple[float, list[dict]]] = {}
+_CACHE_TTL_SECONDS = 30
 
 
 async def vector_search(
@@ -84,6 +87,11 @@ async def hybrid_search(query: str, top_k: int = 5) -> list[dict]:
     Merge vector search and FTS results, de-duplicate by chunk id,
     and rank by vector score (primary) + FTS presence bonus.
     """
+    key = f"{query.strip().lower()}:{top_k}"
+    cached = _search_cache.get(key)
+    if cached and time.monotonic() - cached[0] < _CACHE_TTL_SECONDS:
+        return cached[1]
+
     vector_results = await vector_search(query, top_k=top_k)
     fts_results = await full_text_search(query, top_k=top_k)
 
@@ -101,4 +109,6 @@ async def hybrid_search(query: str, top_k: int = 5) -> list[dict]:
             seen[r["id"]]["score"] = min(seen[r["id"]]["score"] + 0.1, 1.0)
 
     ranked = sorted(seen.values(), key=lambda x: x["score"], reverse=True)
-    return ranked[:top_k]
+    result = ranked[:top_k]
+    _search_cache[key] = (time.monotonic(), result)
+    return result

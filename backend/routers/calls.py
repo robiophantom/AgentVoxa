@@ -5,6 +5,7 @@ Vapi calling router.
 from __future__ import annotations
 
 import logging
+import json
 from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, Request, Response, HTTPException
@@ -59,7 +60,7 @@ async def vapi_webhook(request: Request, db: AsyncSession = Depends(get_db)):
 
 async def _handle_tool_calls(message: dict, db: AsyncSession, vapi_call_id: str) -> list[dict]:
     results = []
-    import json
+    import time
 
     # Vapi sends either `toolWithToolCallList` or `toolCalls` directly
     items = message.get("toolWithToolCallList", [])
@@ -107,7 +108,9 @@ async def _handle_tool_calls(message: dict, db: AsyncSession, vapi_call_id: str)
             continue
 
         # Use our RAG agent to generate the answer
+        started = time.monotonic()
         agent_res = await generate_answer(query)
+        latency_ms = round((time.monotonic() - started) * 1000, 2)
         answer = agent_res.get("answer", "I'm not sure how to answer that.")
         admission_interest = agent_res.get("admission_interest", False)
         escalate = agent_res.get("escalate_to_human", False)
@@ -121,8 +124,56 @@ async def _handle_tool_calls(message: dict, db: AsyncSession, vapi_call_id: str)
             "toolCallId": tool_call_id,
             "result": answer
         })
+
+        await _store_call_tool_metadata(
+            db,
+            vapi_call_id,
+            tool_call_id,
+            query,
+            answer,
+            agent_res,
+            latency_ms,
+        )
         
     return results
+
+
+async def _store_call_tool_metadata(
+    db: AsyncSession,
+    vapi_call_id: str,
+    tool_call_id: str,
+    query: str,
+    answer: str,
+    agent_res: dict,
+    latency_ms: float,
+) -> None:
+    result = await db.execute(select(CallLog).where(CallLog.vapi_call_id == vapi_call_id))
+    log = result.scalar_one_or_none()
+    if not log:
+        log = CallLog(vapi_call_id=vapi_call_id)
+        db.add(log)
+
+    import json
+    executions = []
+    if log.tool_executions:
+        try:
+            executions = json.loads(log.tool_executions)
+        except json.JSONDecodeError:
+            executions = []
+    executions.append({
+        "tool_call_id": tool_call_id,
+        "query": query,
+        "answer_preview": answer[:500],
+        "latency_ms": latency_ms,
+        "provider": agent_res.get("provider"),
+        "model": agent_res.get("model"),
+        "rag_latency_ms": agent_res.get("latency", {}).get("retrieval_ms"),
+        "generation_latency_ms": agent_res.get("latency", {}).get("generation_ms"),
+        "escalated": agent_res.get("escalate_to_human", False),
+    })
+    log.tool_executions = json.dumps(executions)
+    log.latency_ms = latency_ms
+    await db.commit()
 
 
 async def _update_call_status(call_info: dict, db: AsyncSession, vapi_call_id: str, status: str):
@@ -172,6 +223,11 @@ async def _handle_end_of_call(call_info: dict, db: AsyncSession, vapi_call_id: s
     transcript = call_info.get("transcript") or call_info.get("artifact", {}).get("transcript")
     summary = call_info.get("summary") or call_info.get("analysis", {}).get("summary")
     status = call_info.get("status", "completed")
+    artifact = call_info.get("artifact", {}) or {}
+    analysis = call_info.get("analysis", {}) or {}
+    messages = call_info.get("messages") or artifact.get("messages") or []
+    failures = call_info.get("failureReason") or artifact.get("failureReason")
+    cost = call_info.get("costBreakdown") or call_info.get("cost") or {}
     
     # Try to parse timestamps
     started_at_str = call_info.get("startedAt")
@@ -192,6 +248,12 @@ async def _handle_end_of_call(call_info: dict, db: AsyncSession, vapi_call_id: s
         log.summary = summary
     if caller_number:
         log.caller_number = caller_number
+    if messages:
+        log.tool_executions = log.tool_executions or json.dumps(messages)
+    if failures:
+        log.failure_details = json.dumps(failures if isinstance(failures, (dict, list)) else {"failure": str(failures)})
+    if cost:
+        log.cost_metadata = json.dumps(cost)
     if duration_seconds:
         log.duration_seconds = duration_seconds
     log.ended_at = datetime.now(timezone.utc)

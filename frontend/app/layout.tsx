@@ -15,9 +15,9 @@ const sourceSans = Source_Sans_3({
 });
 
 export const metadata: Metadata = {
-  title: "AgentVoxa – AI Receptionist",
+  title: "Graphic Era University – Virtual Assistant",
   description:
-    "AgentVoxa is an intelligent AI receptionist that answers queries via chat and phone calls.",
+    "The official-style virtual assistant for Graphic Era University information and student support.",
 };
 
 export default function RootLayout({

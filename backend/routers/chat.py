@@ -15,6 +15,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from core.database import get_db
 from models.logs import ChatLog, InterestLevel
 from services.agent import generate_answer
+from services.app_settings import get_app_setting
 
 router = APIRouter(prefix="/chat", tags=["chat"])
 
@@ -73,18 +74,31 @@ def _extract_contact_data(
 ) -> dict[str, str]:
     extracted: dict[str, str] = {}
 
-    if contact_name:
+    if contact_name and len(contact_name.strip()) >= 2:
         extracted["name"] = contact_name.strip()
     if contact_email:
-        extracted["email"] = contact_email.strip()
+        email = contact_email.strip()
+        if re.match(r"^[^@\s]+@[^\s@]+\.[^\s@]+$", email):
+            extracted["email"] = email
     if contact_phone:
-        extracted["phone"] = contact_phone.strip()
+        phone = re.sub(r"[^\d+]", "", contact_phone)
+        if 10 <= sum(char.isdigit() for char in phone) <= 15:
+            extracted["phone"] = phone
 
     if new_contact_data:
         for k in ("name", "email", "phone"):
             val = new_contact_data.get(k)
-            if val and k not in extracted:
-                extracted[k] = str(val).strip()
+            if not val or k in extracted:
+                continue
+            value = str(val).strip()
+            if k == "name" and len(value) >= 2:
+                extracted[k] = value
+            elif k == "email" and re.match(r"^[^@\s]+@[^\s@]+\.[^\s@]+$", value):
+                extracted[k] = value
+            elif k == "phone":
+                phone = re.sub(r"[^\d+]", "", value)
+                if 10 <= sum(char.isdigit() for char in phone) <= 15:
+                    extracted[k] = phone
 
     for log in reversed(existing_logs):
         payload = _get_log_captured_data(log)
@@ -353,27 +367,47 @@ async def chat_ws(websocket: WebSocket, db: AsyncSession = Depends(get_db)):
 
 
 @router.get("/tts")
-async def get_tts(text: str):
+async def get_tts(
+    text: str,
+    voice_id: str | None = None,
+    db: AsyncSession = Depends(get_db),
+):
     from core.config import get_settings
     settings = get_settings()
-    if not settings.elevenlabs_api_key:
-        return Response(status_code=400, content="ElevenLabs not configured")
-        
-    url = f"https://api.elevenlabs.io/v1/text-to-speech/{settings.elevenlabs_voice_id}/stream"
-    headers = {
-        "Accept": "audio/mpeg",
-        "Content-Type": "application/json",
-        "xi-api-key": settings.elevenlabs_api_key
-    }
-    # Match the default SDK payload by specifying eleven_multilingual_v2
-    # This prevents 402 Payment Required errors for accounts that default to older/restricted models.
-    data = {
-        "text": text,
-        "model_id": "eleven_multilingual_v2"
-    }
-    
-    async with httpx.AsyncClient() as client:
-        response = await client.post(url, json=data, headers=headers, timeout=15.0)
-        if response.status_code == 200:
-            return Response(content=response.content, media_type="audio/mpeg")
-        return Response(status_code=response.status_code, content=response.text)
+    provider = await get_app_setting(db, "tts_provider")
+    if provider == "browser":
+        return Response(status_code=204)
+
+    if provider == "elevenlabs":
+        if not settings.elevenlabs_api_key:
+            return Response(status_code=503, content="ElevenLabs is not configured")
+        selected_voice = voice_id or await get_app_setting(db, "elevenlabs_voice_id") or settings.elevenlabs_voice_id
+        url = f"https://api.elevenlabs.io/v1/text-to-speech/{selected_voice}/stream"
+        headers = {
+            "Accept": "audio/mpeg",
+            "Content-Type": "application/json",
+            "xi-api-key": settings.elevenlabs_api_key,
+        }
+        data = {"text": text, "model_id": "eleven_multilingual_v2"}
+        async with httpx.AsyncClient(timeout=15.0) as client:
+            response = await client.post(url, json=data, headers=headers)
+            if response.status_code == 200:
+                return Response(content=response.content, media_type="audio/mpeg")
+            return Response(status_code=response.status_code, content=response.text)
+
+    if provider == "sarvam":
+        if not settings.sarvam_api_key:
+            return Response(status_code=503, content="Sarvam AI is not configured")
+        selected_voice = voice_id or await get_app_setting(db, "sarvam_voice_id")
+        async with httpx.AsyncClient(timeout=15.0) as client:
+            response = await client.post(
+                "https://api.sarvam.ai/text-to-speech",
+                headers={"api-subscription-key": settings.sarvam_api_key, "Content-Type": "application/json"},
+                json={"text": text, "target_language_code": "en-IN", "speaker": selected_voice or "meera"},
+            )
+            if response.status_code == 200:
+                content_type = response.headers.get("content-type", "audio/wav")
+                return Response(content=response.content, media_type=content_type)
+            return Response(status_code=response.status_code, content=response.text)
+
+    return Response(status_code=503, content="The selected TTS provider is unavailable")

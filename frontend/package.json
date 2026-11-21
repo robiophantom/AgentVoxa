@@ -25,6 +25,8 @@
     "@radix-ui/react-tabs": "^1.0.4",
     "@radix-ui/react-toast": "^1.1.5",
     "sonner": "^1.4.41"
+    ,"react-markdown": "^9.0.1"
+    ,"remark-gfm": "^4.0.0"
   },
   "devDependencies": {
     "typescript": "^5.4.5",

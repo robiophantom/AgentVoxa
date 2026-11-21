@@ -6,6 +6,8 @@ import uuid
 from pathlib import Path
 
 import tiktoken
+import asyncio
+import google.generativeai as genai
 from docx import Document as DocxDocument
 from pypdf import PdfReader
 from qdrant_client.models import PointStruct
@@ -81,6 +83,27 @@ def chunk_text(text: str, chunk_size: int = 512, overlap: int = 50) -> list[str]
     return [c for c in chunks if c.strip()]
 
 
+async def gemini_chunk_text(text: str, chunk_size: int = 512) -> list[str]:
+    """Use Gemini to normalize and segment a document before embedding."""
+    if not settings.gemini_api_key or len(text) > 100_000:
+        return chunk_text(text, chunk_size=chunk_size)
+
+    genai.configure(api_key=settings.gemini_api_key)
+    model = genai.GenerativeModel(settings.gemini_document_model_name)
+    prompt = (
+        "Clean this document text and return it split into semantically coherent sections. "
+        f"Each section should be approximately {chunk_size} tokens. "
+        "Preserve factual wording and return plain text sections separated by exactly one blank line.\n\n"
+        f"{text[:100_000]}"
+    )
+    try:
+        response = await asyncio.to_thread(model.generate_content, prompt)
+        sections = [section.strip() for section in response.text.split("\n\n") if section.strip()]
+        return sections or chunk_text(text, chunk_size=chunk_size)
+    except Exception:
+        return chunk_text(text, chunk_size=chunk_size)
+
+
 async def ingest_document(
     document_id: int,
     filename: str,
@@ -91,7 +114,7 @@ async def ingest_document(
     Returns list of Qdrant point IDs upserted.
     """
     text = extract_text(filename, content)
-    chunks = chunk_text(text, chunk_size=settings.chunk_size_tokens)
+    chunks = await gemini_chunk_text(text, chunk_size=settings.chunk_size_tokens)
 
     if not chunks:
         return []

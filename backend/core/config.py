@@ -26,10 +26,20 @@ class Settings(BaseSettings):
     gemini_api_key: str = ""
     gemini_model_name: str = "gemini-2.5-flash"
     gemini_max_output_tokens: int = 4096
+    gemini_document_model_name: str = "gemini-2.5-flash"
+
+    # Groq
+    groq_api_key: str = ""
+    groq_model_name: str = "openai/gpt-oss-120b"
+    answer_provider: str = "groq"
+    answer_model: str = "openai/gpt-oss-120b"
 
     # ElevenLabs
     elevenlabs_api_key: str = ""
     elevenlabs_voice_id: str = ""
+    sarvam_api_key: str = ""
+    sarvam_voice_id: str = ""
+    tts_provider: str = "elevenlabs"
 
     # Vapi
     vapi_api_key: str = ""

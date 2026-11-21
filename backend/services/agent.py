@@ -3,11 +3,15 @@ from __future__ import annotations
 
 import logging
 import re
+import time
 
 import google.generativeai as genai
 
 from core.config import get_settings
 from services.rag import hybrid_search
+from services.provider import generate_answer_with_provider
+from services.app_settings import get_answer_config
+from core.database import AsyncSessionLocal
 
 settings = get_settings()
 logger = logging.getLogger(__name__)
@@ -137,7 +141,10 @@ async def generate_answer(
             "escalate_to_human": bool,
         }
     """
+    total_started = time.monotonic()
+    retrieval_started = time.monotonic()
     chunks = await hybrid_search(user_message, top_k=5)
+    retrieval_ms = round((time.monotonic() - retrieval_started) * 1000, 2)
     context = _build_context(chunks)
     history_text = _build_chat_history(chat_history)
 
@@ -162,14 +169,17 @@ Answer:"""
 
     answer = ""
     contact_info = {}
+    generation_ms = 0.0
+    provider_name = "unknown"
+    model_name = "unknown"
     try:
-        model = genai.GenerativeModel(settings.gemini_model_name)
-        # Respect configured max output tokens
-        
-        max_tokens = int(getattr(settings, "gemini_max_output_tokens", 0) or 0)
-        generation_config = genai.types.GenerationConfig(max_output_tokens=max_tokens) if max_tokens > 0 else None
-        response = model.generate_content(prompt, generation_config=generation_config)
-        answer = response.text.strip()
+        generation_started = time.monotonic()
+        async with AsyncSessionLocal() as db:
+            provider, model = await get_answer_config(db)
+        provider_name = provider
+        model_name = model
+        answer = await generate_answer_with_provider(prompt, provider, model)
+        generation_ms = round((time.monotonic() - generation_started) * 1000, 2)
         
         # Parse potential contact info JSON block
         import json, re
@@ -197,4 +207,11 @@ Answer:"""
         "admission_interest": admission_interest,
         "escalate_to_human": escalate,
         "contact_info": contact_info,
+        "latency": {
+            "retrieval_ms": retrieval_ms,
+            "generation_ms": generation_ms,
+            "total_ms": round((time.monotonic() - total_started) * 1000, 2),
+        },
+        "provider": provider_name,
+        "model": model_name,
     }

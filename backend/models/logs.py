@@ -62,6 +62,10 @@ class CallLog(Base):
     )
     escalated_to_human: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     call_status: Mapped[str] = mapped_column(String(30), default="initiated", nullable=False)
+    tool_executions: Mapped[str | None] = mapped_column(Text, nullable=True)
+    failure_details: Mapped[str | None] = mapped_column(Text, nullable=True)
+    latency_ms: Mapped[float | None] = mapped_column(Float, nullable=True)
+    cost_metadata: Mapped[str | None] = mapped_column(Text, nullable=True)
 
     started_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),

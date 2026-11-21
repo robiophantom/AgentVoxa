@@ -1,8 +1,9 @@
 """Admin dashboard router: logs, insights, user management."""
 import json
+import httpx
 from collections import defaultdict
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status, WebSocket, WebSocketDisconnect
 from pydantic import BaseModel
 from sqlalchemy import select, func, delete
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -11,11 +12,25 @@ from core.database import get_db
 from core.security import require_role
 from models.logs import ChatLog, CallLog, InterestLevel
 from models.user import User, UserRole
+from core.config import get_settings
+from services.app_settings import get_all_app_settings, set_app_setting
+from services.provider import FREE_TIER_MODELS
 
 router = APIRouter(prefix="/admin", tags=["admin"])
+settings = get_settings()
 
 class BulkDeleteRequest(BaseModel):
     ids: list[int]
+
+
+class AppSettingsUpdate(BaseModel):
+    answer_provider: str | None = None
+    answer_model: str | None = None
+    tts_provider: str | None = None
+    elevenlabs_voice_id: str | None = None
+    sarvam_voice_id: str | None = None
+    max_upload_size_mb: int | None = None
+    chunk_size_tokens: int | None = None
 
 
 def _safe_json_load(text: str | None) -> dict:
@@ -195,9 +210,72 @@ async def get_call_logs(
             "call_status": l.call_status,
             "started_at": l.started_at,
             "ended_at": l.ended_at,
+            "tool_executions": json.loads(l.tool_executions) if l.tool_executions else [],
+            "failure_details": json.loads(l.failure_details) if l.failure_details else None,
+            "latency_ms": l.latency_ms,
+            "cost_metadata": json.loads(l.cost_metadata) if l.cost_metadata else None,
         }
         for l in logs
     ]
+
+
+@router.get("/call-logs/{call_id}")
+async def get_call_detail(
+    call_id: int,
+    db: AsyncSession = Depends(get_db),
+    _: User = Depends(require_role(UserRole.admin)),
+):
+    result = await db.execute(select(CallLog).where(CallLog.id == call_id))
+    call = result.scalar_one_or_none()
+    if not call:
+        raise HTTPException(status_code=404, detail="Call not found")
+    return {
+        "id": call.id,
+        "vapi_call_id": call.vapi_call_id,
+        "caller_number": call.caller_number,
+        "transcript": call.transcript,
+        "summary": call.summary,
+        "duration_seconds": call.duration_seconds,
+        "admission_interest": call.admission_interest,
+        "escalated_to_human": call.escalated_to_human,
+        "call_status": call.call_status,
+        "started_at": call.started_at,
+        "ended_at": call.ended_at,
+        "tool_executions": json.loads(call.tool_executions) if call.tool_executions else [],
+        "failure_details": json.loads(call.failure_details) if call.failure_details else None,
+        "latency_ms": call.latency_ms,
+        "cost_metadata": json.loads(call.cost_metadata) if call.cost_metadata else None,
+    }
+
+
+@router.get("/tts/voices")
+async def get_tts_voices(
+    _: User = Depends(require_role(UserRole.admin)),
+):
+    voices = {"browser": [{"id": "browser", "name": "Browser default"}], "sarvam": [
+        {"id": "meera", "name": "Meera"},
+        {"id": "pavithra", "name": "Pavithra"},
+        {"id": "maitreyi", "name": "Maitreyi"},
+        {"id": "arvind", "name": "Arvind"},
+        {"id": "amartya", "name": "Amartya"},
+    ], "elevenlabs": []}
+
+    if settings.elevenlabs_api_key:
+        try:
+            async with httpx.AsyncClient(timeout=10.0) as client:
+                response = await client.get(
+                    "https://api.elevenlabs.io/v1/voices",
+                    headers={"xi-api-key": settings.elevenlabs_api_key},
+                )
+                if response.status_code == 200:
+                    voices["elevenlabs"] = [
+                        {"id": voice["voice_id"], "name": voice.get("name", voice["voice_id"])}
+                        for voice in response.json().get("voices", [])
+                    ]
+        except Exception:
+            pass
+
+    return voices
 
 
 @router.delete("/call-logs", status_code=status.HTTP_204_NO_CONTENT)
@@ -259,3 +337,53 @@ async def get_stats(
         "total_calls": call_count,
         "interested_in_admission": interested_count,
     }
+
+
+@router.get("/settings")
+async def get_settings(
+    db: AsyncSession = Depends(get_db),
+    _: User = Depends(require_role(UserRole.admin)),
+):
+    values = await get_all_app_settings(db)
+    return {
+        "settings": values,
+        "providers": {
+            "answer": {
+                "gemini": FREE_TIER_MODELS["gemini"],
+                "groq": FREE_TIER_MODELS["groq"],
+            },
+            "tts": ["browser", "elevenlabs", "sarvam"],
+        },
+    }
+
+
+@router.put("/settings")
+async def update_settings(
+    payload: AppSettingsUpdate,
+    db: AsyncSession = Depends(get_db),
+    _: User = Depends(require_role(UserRole.admin)),
+):
+    allowed_answers = {
+        "groq": FREE_TIER_MODELS["groq"],
+        "gemini": FREE_TIER_MODELS["gemini"],
+    }
+    updates = payload.model_dump(exclude_none=True)
+
+    if "answer_provider" in updates and updates["answer_provider"] not in allowed_answers:
+        raise HTTPException(status_code=400, detail="Unsupported answer provider")
+    if "answer_model" in updates:
+        current = await get_all_app_settings(db)
+        provider = updates.get("answer_provider") or current["answer_provider"]
+        if updates["answer_model"] not in allowed_answers.get(provider, []):
+            raise HTTPException(status_code=400, detail="Model is not available for this provider")
+    if "tts_provider" in updates and updates["tts_provider"] not in {"browser", "elevenlabs", "sarvam"}:
+        raise HTTPException(status_code=400, detail="Unsupported TTS provider")
+    if "max_upload_size_mb" in updates and not 1 <= updates["max_upload_size_mb"] <= 50:
+        raise HTTPException(status_code=400, detail="Upload limit must be between 1 and 50 MB")
+    if "chunk_size_tokens" in updates and not 128 <= updates["chunk_size_tokens"] <= 2048:
+        raise HTTPException(status_code=400, detail="Chunk size must be between 128 and 2048 tokens")
+
+    for key, value in updates.items():
+        await set_app_setting(db, key, str(value))
+
+    return await get_settings(db=db, _=_)

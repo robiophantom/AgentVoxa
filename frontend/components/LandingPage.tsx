@@ -124,7 +124,7 @@ export default function LandingPage() {
             className="inline-flex items-center gap-2 bg-brand-red/10 text-brand-red px-4 py-1.5 rounded-full text-sm font-medium mb-6"
           >
             <Zap className="w-4 h-4" />
-            Powered by Gemini AI + Vapi
+            Graphic Era University Reception Assistant
           </motion.div>
 
           <motion.h1
@@ -146,7 +146,7 @@ export default function LandingPage() {
             transition={{ duration: 0.7, delay: 0.25 }}
             className="text-xl text-gray-500 max-w-2xl mx-auto mb-10"
           >
-            AgentVoxa handles users queries 24x7.
+            Get clear, campus-focused answers for Graphic Era University courses, admissions, fees, scholarships, and student life.
           </motion.p>
 
           <motion.div
@@ -247,7 +247,7 @@ export default function LandingPage() {
             <MessageCircle className="w-12 h-12 mx-auto mb-4 opacity-80" />
             <h2 className="text-3xl font-bold mb-4">Ready to chat?</h2>
             <p className="text-red-100 mb-8">
-              Ask anything about courses, admissions, fees, or campus life.
+              Ask anything about Graphic Era University courses, admissions, fees, or campus life.
             </p>
             <Link
               href="/chat"

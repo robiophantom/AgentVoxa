@@ -155,6 +155,53 @@ async def bulk_delete_documents(
     await db.commit()
 
 
+@router.put("/{document_id}/replace", status_code=status.HTTP_200_OK)
+async def replace_document(
+    document_id: int,
+    background_tasks: BackgroundTasks,
+    file: UploadFile = File(...),
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(require_role(UserRole.admin)),
+):
+    result = await db.execute(select(Document).where(Document.id == document_id))
+    doc = result.scalar_one_or_none()
+    if not doc:
+        raise HTTPException(status_code=404, detail="Document not found.")
+
+    content = await file.read()
+    filename = file.filename or "unknown"
+    try:
+        validate_file(filename, content, file.content_type or "application/octet-stream")
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+
+    await delete_document_chunks(document_id)
+    old_path = os.path.join(UPLOAD_DIR, doc.filename)
+    if os.path.exists(old_path):
+        os.remove(old_path)
+
+    safe_name = f"{uuid.uuid4()}_{os.path.basename(filename)}"
+    new_path = os.path.join(UPLOAD_DIR, safe_name)
+    with open(new_path, "wb") as handle:
+        handle.write(content)
+
+    doc.filename = safe_name
+    doc.original_name = os.path.basename(filename)
+    doc.mime_type = file.content_type or "application/octet-stream"
+    doc.size_bytes = len(content)
+    doc.status = DocumentStatus.processing
+    doc.chunk_count = 0
+    doc.error_message = None
+    await db.commit()
+    background_tasks.add_task(
+        background_ingest_documents,
+        [document_id],
+        [filename],
+        [content],
+    )
+    return {"id": document_id, "original_name": doc.original_name, "status": doc.status}
+
+
 @router.delete("/{document_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_document(
     document_id: int,

@@ -19,6 +19,8 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { toast } from "sonner";
+import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
 import { BACKEND_URL, WS_URL } from "@/lib/utils";
 
 const PHONE_NUMBER =
@@ -73,7 +75,7 @@ const createWelcomeMessage = (): Message => ({
   id: "welcome",
   role: "agent",
   content:
-    "Hello, I am AgentVoxa. Ask anything about courses, admissions, scholarships, and campus life.",
+    "Welcome to Graphic Era University. Ask about courses, admissions, scholarships, fees, placements, or campus life.",
   timestamp: new Date(),
 });
 
@@ -624,54 +626,6 @@ export default function ChatInterface() {
             </div>
           </header>
 
-          <AnimatePresence>
-            {showContactForm && (
-              <motion.div
-                initial={{ y: -10, opacity: 0 }}
-                animate={{ y: 0, opacity: 1 }}
-                exit={{ y: -10, opacity: 0 }}
-                className="border-b border-brand-yellow/35 bg-brand-yellow/20 px-4 py-3"
-              >
-                <div className="mx-auto flex w-full max-w-5xl flex-col gap-2 lg:flex-row lg:items-center">
-                  <p className="text-sm font-semibold text-gray-700">Share your details for admission follow-up:</p>
-                  <input
-                    type="text"
-                    placeholder="Name"
-                    value={contactInfo.name}
-                    onChange={(e) => setContactInfo((c) => ({ ...c, name: e.target.value }))}
-                    className="rounded-xl border border-white/70 bg-white/85 px-3 py-2 text-sm outline-none ring-brand-red/35 transition focus:ring-2"
-                  />
-                  <input
-                    type="email"
-                    placeholder="Email"
-                    value={contactInfo.email}
-                    onChange={(e) => setContactInfo((c) => ({ ...c, email: e.target.value }))}
-                    className="rounded-xl border border-white/70 bg-white/85 px-3 py-2 text-sm outline-none ring-brand-red/35 transition focus:ring-2"
-                  />
-                  <input
-                    type="tel"
-                    placeholder="Phone"
-                    value={contactInfo.phone}
-                    onChange={(e) => setContactInfo((c) => ({ ...c, phone: e.target.value }))}
-                    className="rounded-xl border border-white/70 bg-white/85 px-3 py-2 text-sm outline-none ring-brand-red/35 transition focus:ring-2"
-                  />
-                  <button
-                    onClick={saveContactDetails}
-                    className="rounded-xl bg-brand-red px-3 py-2 text-sm font-medium text-white transition hover:bg-red-700"
-                  >
-                    Save
-                  </button>
-                  <button
-                    onClick={() => setShowContactForm(false)}
-                    className="self-end text-gray-500 transition hover:text-gray-700 lg:self-center"
-                  >
-                    <X className="h-4 w-4" />
-                  </button>
-                </div>
-              </motion.div>
-            )}
-          </AnimatePresence>
-
           <div className="flex-1 overflow-y-auto px-4 py-6 scrollbar-thin scrollbar-track-transparent scrollbar-thumb-brand-blue/20 hover:scrollbar-thumb-brand-blue/40">
             <div className="mx-auto w-full max-w-5xl space-y-4">
               <AnimatePresence initial={false}>
@@ -704,7 +658,26 @@ export default function ChatInterface() {
                       }`}
                     >
                       <div className="break-words">
-                        {renderInteractiveAsteriskText(msg.content, applyAsteriskToken)}
+                        {msg.role === "agent" ? (
+                          <ReactMarkdown
+                            remarkPlugins={[remarkGfm]}
+                            components={{
+                              h1: ({children}) => <h1 className="mb-3 mt-2 text-lg font-bold">{children}</h1>,
+                              h2: ({children}) => <h2 className="mb-2 mt-3 text-base font-bold">{children}</h2>,
+                              h3: ({children}) => <h3 className="mb-2 mt-2 font-semibold">{children}</h3>,
+                              p: ({children}) => <p className="mb-2 last:mb-0">{children}</p>,
+                              ul: ({children}) => <ul className="mb-2 list-disc space-y-1 pl-5">{children}</ul>,
+                              ol: ({children}) => <ol className="mb-2 list-decimal space-y-1 pl-5">{children}</ol>,
+                              table: ({children}) => <div className="my-3 overflow-x-auto"><table className="min-w-full border-collapse text-xs">{children}</table></div>,
+                              th: ({children}) => <th className="border border-gray-200 bg-gray-50 px-2 py-1 text-left">{children}</th>,
+                              td: ({children}) => <td className="border border-gray-200 px-2 py-1">{children}</td>,
+                            }}
+                          >
+                            {msg.content}
+                          </ReactMarkdown>
+                        ) : (
+                          renderInteractiveAsteriskText(msg.content, applyAsteriskToken)
+                        )}
                       </div>
 
                       {msg.escalated && (

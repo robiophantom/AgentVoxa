@@ -17,6 +17,7 @@ import {
   CheckCircle2,
   Clock,
   ChevronRight,
+  Settings,
 } from "lucide-react";
 import Link from "next/link";
 import { useSession, signOut } from "next-auth/react";
@@ -24,7 +25,7 @@ import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { BACKEND_URL } from "@/lib/utils";
 
-type Tab = "knowledge-base" | "chat-logs" | "call-logs" | "insights" | "stats";
+type Tab = "knowledge-base" | "chat-logs" | "call-logs" | "insights" | "stats" | "settings";
 
 type Document = {
   id: number;
@@ -112,6 +113,8 @@ export default function AdminDashboard() {
   const [stats, setStats] = useState<Stats | null>(null);
   const [uploading, setUploading] = useState(false);
   const [loadingData, setLoadingData] = useState(false);
+  const [appSettings, setAppSettings] = useState<Record<string, string>>({});
+  const [providerOptions, setProviderOptions] = useState<Record<string, any>>({});
 
   const [selectedDocs, setSelectedDocs] = useState<number[]>([]);
   const [selectedChatSessions, setSelectedChatSessions] = useState<string[]>([]);
@@ -215,6 +218,37 @@ export default function AdminDashboard() {
     } catch {}
   };
 
+  const fetchSettings = async () => {
+    try {
+      const res = await fetch(`${BACKEND_URL}/api/admin/settings`, { headers: getHeaders() });
+      if (res.ok) {
+        const data = await res.json();
+        setAppSettings(data.settings);
+        setProviderOptions(data.providers);
+      }
+    } catch {
+      toast.error("Failed to load application settings");
+    }
+  };
+
+  const saveSettings = async () => {
+    try {
+      const res = await fetch(`${BACKEND_URL}/api/admin/settings`, {
+        method: "PUT",
+        headers: { ...getHeaders(), "Content-Type": "application/json" },
+        body: JSON.stringify(appSettings),
+      });
+      if (!res.ok) {
+        const error = await res.json();
+        throw new Error(error.detail || "Settings could not be saved");
+      }
+      toast.success("Settings saved");
+      fetchSettings();
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Settings could not be saved");
+    }
+  };
+
   useEffect(() => {
     if (status !== "authenticated") return;
     fetchStats();
@@ -228,8 +262,21 @@ export default function AdminDashboard() {
     }
     else if (activeTab === "call-logs") fetchCallLogs();
     else if (activeTab === "insights") fetchInsights();
+    else if (activeTab === "settings") fetchSettings();
     // Fetch functions are defined inline and depend on session/activeTab via closure;
     // they are intentionally excluded to avoid infinite re-render loops.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeTab, status]);
+
+  useEffect(() => {
+    if (status !== "authenticated") return;
+    const interval = window.setInterval(() => {
+      fetchStats();
+      if (activeTab === "knowledge-base") fetchDocuments();
+      if (activeTab === "call-logs") fetchCallLogs();
+      if (activeTab === "chat-logs") fetchChatConversations();
+    }, 10000);
+    return () => window.clearInterval(interval);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeTab, status]);
 
@@ -361,6 +408,7 @@ export default function AdminDashboard() {
     { id: "call-logs", label: "Call Logs", icon: Phone },
     { id: "insights", label: "Admission Insights", icon: Users },
     { id: "stats", label: "Stats", icon: BarChart3 },
+    { id: "settings", label: "Settings", icon: Settings },
   ];
 
   if (status === "loading") {
@@ -881,6 +929,73 @@ export default function AdminDashboard() {
                   </table>
                 </div>
               )}
+            </motion.div>
+          )}
+
+          {/* ── Settings ── */}
+          {activeTab === "settings" && (
+            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="mx-auto max-w-3xl space-y-6">
+              <div className="rounded-2xl border border-gray-100 bg-white p-6 shadow-sm">
+                <h2 className="mb-5 text-lg font-semibold text-gray-900">AI Answer Provider</h2>
+                <div className="grid gap-4 md:grid-cols-2">
+                  <label className="text-sm font-medium text-gray-700">
+                    Provider
+                    <select
+                      value={appSettings.answer_provider || "groq"}
+                      onChange={(e) => setAppSettings((value) => ({ ...value, answer_provider: e.target.value, answer_model: providerOptions.answer?.[e.target.value]?.[0] || "" }))}
+                      className="mt-2 w-full rounded-xl border border-gray-200 px-3 py-2.5"
+                    >
+                      <option value="groq">Groq</option>
+                      <option value="gemini">Google Gemini</option>
+                    </select>
+                  </label>
+                  <label className="text-sm font-medium text-gray-700">
+                    Free-tier model
+                    <select
+                      value={appSettings.answer_model || ""}
+                      onChange={(e) => setAppSettings((value) => ({ ...value, answer_model: e.target.value }))}
+                      className="mt-2 w-full rounded-xl border border-gray-200 px-3 py-2.5"
+                    >
+                      {(providerOptions.answer?.[appSettings.answer_provider || "groq"] || []).map((model: string) => (
+                        <option key={model} value={model}>{model}</option>
+                      ))}
+                    </select>
+                  </label>
+                </div>
+              </div>
+
+              <div className="rounded-2xl border border-gray-100 bg-white p-6 shadow-sm">
+                <h2 className="mb-5 text-lg font-semibold text-gray-900">Voice Output</h2>
+                <div className="grid gap-4 md:grid-cols-2">
+                  <label className="text-sm font-medium text-gray-700">
+                    Default provider
+                    <select
+                      value={appSettings.tts_provider || "elevenlabs"}
+                      onChange={(e) => setAppSettings((value) => ({ ...value, tts_provider: e.target.value }))}
+                      className="mt-2 w-full rounded-xl border border-gray-200 px-3 py-2.5"
+                    >
+                      <option value="elevenlabs">ElevenLabs</option>
+                      <option value="sarvam">Sarvam AI</option>
+                      <option value="browser">Browser voice</option>
+                    </select>
+                  </label>
+                  <label className="text-sm font-medium text-gray-700">
+                    ElevenLabs voice ID
+                    <input
+                      value={appSettings.elevenlabs_voice_id || ""}
+                      onChange={(e) => setAppSettings((value) => ({ ...value, elevenlabs_voice_id: e.target.value }))}
+                      className="mt-2 w-full rounded-xl border border-gray-200 px-3 py-2.5"
+                      placeholder="Voice ID"
+                    />
+                  </label>
+                </div>
+              </div>
+
+              <div className="flex justify-end">
+                <button onClick={saveSettings} className="rounded-xl bg-brand-red px-5 py-2.5 text-sm font-semibold text-white hover:bg-red-700">
+                  Save Settings
+                </button>
+              </div>
             </motion.div>
           )}
 
