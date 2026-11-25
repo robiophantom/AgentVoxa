@@ -1,5 +1,6 @@
 """Admin dashboard router: logs, insights, user management."""
 import json
+import logging
 import httpx
 from collections import defaultdict
 
@@ -18,6 +19,7 @@ from services.provider import FREE_TIER_MODELS
 
 router = APIRouter(prefix="/admin", tags=["admin"])
 settings = get_settings()
+logger = logging.getLogger(__name__)
 
 class BulkDeleteRequest(BaseModel):
     ids: list[int]
@@ -53,6 +55,16 @@ def _parse_chat_metadata(log: ChatLog) -> dict:
             else {}
         ),
     }
+
+
+def _json_or_default(value: str | None, default):
+    if not value:
+        return default
+    try:
+        return json.loads(value)
+    except json.JSONDecodeError:
+        logger.warning("Ignoring malformed JSON metadata in call log")
+        return default
 
 
 @router.get("/chat-logs")
@@ -210,10 +222,10 @@ async def get_call_logs(
             "call_status": l.call_status,
             "started_at": l.started_at,
             "ended_at": l.ended_at,
-            "tool_executions": json.loads(l.tool_executions) if l.tool_executions else [],
-            "failure_details": json.loads(l.failure_details) if l.failure_details else None,
+            "tool_executions": _json_or_default(l.tool_executions, []),
+            "failure_details": _json_or_default(l.failure_details, None),
             "latency_ms": l.latency_ms,
-            "cost_metadata": json.loads(l.cost_metadata) if l.cost_metadata else None,
+            "cost_metadata": _json_or_default(l.cost_metadata, None),
         }
         for l in logs
     ]
@@ -241,10 +253,10 @@ async def get_call_detail(
         "call_status": call.call_status,
         "started_at": call.started_at,
         "ended_at": call.ended_at,
-        "tool_executions": json.loads(call.tool_executions) if call.tool_executions else [],
-        "failure_details": json.loads(call.failure_details) if call.failure_details else None,
+        "tool_executions": _json_or_default(call.tool_executions, []),
+        "failure_details": _json_or_default(call.failure_details, None),
         "latency_ms": call.latency_ms,
-        "cost_metadata": json.loads(call.cost_metadata) if call.cost_metadata else None,
+        "cost_metadata": _json_or_default(call.cost_metadata, None),
     }
 
 

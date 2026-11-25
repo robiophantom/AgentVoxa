@@ -6,10 +6,15 @@ Run from the backend directory:
 from __future__ import annotations
 
 import asyncio
+import os
+import sys
 
 from sqlalchemy import text
 
-from core.database import engine
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
+
+import models  # noqa: F401 - register every model before create_all.
+from core.database import create_tables, engine
 
 
 ALTERATIONS = [
@@ -22,6 +27,7 @@ ALTERATIONS = [
 
 
 async def migrate() -> None:
+    await create_tables()
     async with engine.begin() as connection:
         for statement in ALTERATIONS:
             await connection.execute(text(statement))
